@@ -15,6 +15,19 @@ import { useAuth } from "@/lib/auth";
 import { saveNbaResult } from "@/lib/store/leaderboard";
 import { SpinMachine } from "@/components/SpinMachine";
 import { ModePicker } from "@/components/ModePicker";
+import { LineupBuilder, SlotDef } from "@/components/LineupBuilder";
+import { nbaEligible, nbaRoles } from "@/lib/nba/eligibility";
+
+const NBA_SLOTS: SlotDef[] = [
+  { id: "pg", position: "PG", label: "PG", x: 58, y: 26 },
+  { id: "sg", position: "SG", label: "SG", x: 84, y: 46 },
+  { id: "sf", position: "SF", label: "SF", x: 16, y: 46 },
+  { id: "pf", position: "PF", label: "PF", x: 33, y: 70 },
+  { id: "c", position: "C", label: "C", x: 64, y: 74 },
+  { id: "b1", position: "ANY", label: "Bench", bench: true },
+  { id: "b2", position: "ANY", label: "Bench", bench: true },
+  { id: "b3", position: "ANY", label: "Bench", bench: true },
+];
 
 const POSITIONS: (NbaPosition | "ALL")[] = ["ALL", "PG", "SG", "SF", "PF", "C"];
 
@@ -27,9 +40,11 @@ export default function NbaPage() {
   const [season, setSeason] = useState<NbaSeasonResult | null>(null);
 
   // spin draft state
+  const [mode, setMode] = useState<"classic" | "spin">("classic");
   const [pool, setPool] = useState<NbaPlayer[]>(NBA_PLAYERS);
   const [lockedId, setLockedId] = useState<string | null>(null);
   const [contextLabel, setContextLabel] = useState<string | null>(null);
+  const [spinInitial, setSpinInitial] = useState<(NbaPlayer | null)[]>([]);
 
   const spent = useMemo(
     () =>
@@ -43,6 +58,7 @@ export default function NbaPage() {
   const rosterFull = starters.length === NBA_STARTERS && bench.length === NBA_BENCH;
 
   const startClassic = () => {
+    setMode("classic");
     setPool(NBA_PLAYERS);
     setLockedId(null);
     setContextLabel(null);
@@ -57,16 +73,31 @@ export default function NbaPage() {
     const deduped = combined.filter((p) =>
       seen.has(p.id) ? false : (seen.add(p.id), true)
     );
+    setMode("spin");
     setPool(deduped);
     setLockedId(result.locked.id);
     setContextLabel(result.label);
-    setStarters([result.locked]);
-    setBench([]);
+
+    // pre-place the locked star in a natural eligible slot
+    const initial: (NbaPlayer | null)[] = Array(NBA_SLOTS.length).fill(null);
+    const elig = nbaEligible(result.locked) as string[];
+    const slotIdx = NBA_SLOTS.findIndex((s) => s.position !== "ANY" && elig.includes(s.position));
+    initial[slotIdx >= 0 ? slotIdx : 5] = result.locked;
+    setSpinInitial(initial);
     setPhase("draft");
   };
 
   const startSeason = () => {
     setSeason(simulateSeason(rating));
+    setPhase("sim");
+  };
+
+  const startSeasonFromLineup = (placed: (NbaPlayer | null)[]) => {
+    const s = placed.slice(0, 5).filter(Boolean) as NbaPlayer[];
+    const b = placed.slice(5, 8).filter(Boolean) as NbaPlayer[];
+    setStarters(s);
+    setBench(b);
+    setSeason(simulateSeason(teamRating(s, b)));
     setPhase("sim");
   };
 
@@ -111,7 +142,25 @@ export default function NbaPage() {
             </button>
           </motion.div>
         )}
-        {phase === "draft" && (
+        {phase === "draft" && mode === "spin" && (
+          <motion.div key="lineup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <LineupBuilder<NbaPlayer>
+              variant="nba"
+              accent="nba"
+              slots={NBA_SLOTS}
+              pool={pool}
+              lockedId={lockedId}
+              initialPlaced={spinInitial}
+              eligible={nbaEligible}
+              roles={nbaRoles}
+              contextLabel={contextLabel}
+              confirmLabel="Confirm lineup → Tip off"
+              onConfirm={startSeasonFromLineup}
+              onBack={() => setPhase("mode")}
+            />
+          </motion.div>
+        )}
+        {phase === "draft" && mode === "classic" && (
           <motion.div key="draft" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <DraftBoard
               pool={pool}

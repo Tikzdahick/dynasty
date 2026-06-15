@@ -21,6 +21,8 @@ interface SportData<P extends Player> {
   teams: string[];
   master: P[];
   minOptions: number; // ensure at least this many total players to draft from
+  // Optional: guarantee positional coverage so every lineup slot is fillable.
+  coverage?: (already: P[], fill: P[]) => P[];
 }
 
 const NBA_DATA: SportData<NbaPlayer> = {
@@ -31,12 +33,34 @@ const NBA_DATA: SportData<NbaPlayer> = {
   minOptions: 16,
 };
 
+const SOCCER_MIN_BY_POS: Record<string, number> = { GK: 2, DEF: 5, MID: 5, FWD: 4 };
+
 const SOCCER_DATA: SportData<SoccerPlayer> = {
   iconic: SOCCER_ICONIC,
   decadePool: soccerDecadePool,
   teams: SOCCER_TEAMS,
   master: SOCCER_MASTER,
   minOptions: 30,
+  coverage: (already, fill) => {
+    const all = [...already, ...fill];
+    const have = new Set(all.map((p) => p.id));
+    const padded = [...fill];
+    for (const pos of Object.keys(SOCCER_MIN_BY_POS)) {
+      const count = all.filter((p) => p.position === pos).length;
+      let need = SOCCER_MIN_BY_POS[pos] - count;
+      if (need <= 0) continue;
+      const candidates = SOCCER_MASTER.filter(
+        (p) => p.position === pos && !have.has(p.id)
+      ).sort((a, b) => b.overall - a.overall);
+      for (const c of candidates) {
+        if (need <= 0) break;
+        padded.push(c);
+        have.add(c.id);
+        need--;
+      }
+    }
+    return padded;
+  },
 };
 
 function pick<T>(arr: T[]): T {
@@ -79,7 +103,8 @@ function resolve<P extends Player>(
     const locked = best(teamPlayers);
     const teamIds = new Set(teamPlayers.map((p) => p.id));
     const fillBase = data.decadePool(decade).filter((p) => !teamIds.has(p.id));
-    const fillPlayers = padFill(data, teamPlayers, fillBase);
+    let fillPlayers = padFill(data, teamPlayers, fillBase);
+    if (data.coverage) fillPlayers = data.coverage(teamPlayers, fillPlayers);
     return {
       decade,
       team,
@@ -95,7 +120,8 @@ function resolve<P extends Player>(
   const pool = data.decadePool(decade);
   const locked = pool.length ? best(pool) : best(data.master);
   const fillBase = pool.filter((p) => p.id !== locked.id);
-  const fillPlayers = padFill(data, [locked], fillBase);
+  let fillPlayers = padFill(data, [locked], fillBase);
+  if (data.coverage) fillPlayers = data.coverage([locked], fillPlayers);
   return {
     decade,
     team,

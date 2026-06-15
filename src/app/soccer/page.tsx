@@ -18,6 +18,25 @@ import { useAuth } from "@/lib/auth";
 import { saveSoccerResult } from "@/lib/store/leaderboard";
 import { SpinMachine } from "@/components/SpinMachine";
 import { ModePicker } from "@/components/ModePicker";
+import { LineupBuilder, SlotDef } from "@/components/LineupBuilder";
+import { soccerEligible, soccerRoles } from "@/lib/soccer/eligibility";
+
+function soccerSlots(formationName: FormationName): SlotDef[] {
+  const slots = FORMATIONS[formationName].slots.map((s, i) => ({
+    id: `s${i}`,
+    position: s.position,
+    label: s.position,
+    x: s.x,
+    y: s.y,
+  }));
+  const subs = [0, 1, 2].map((i) => ({
+    id: `sub${i}`,
+    position: "ANY",
+    label: "Sub",
+    bench: true,
+  }));
+  return [...slots, ...subs];
+}
 
 type SubMode = "classic" | "iq";
 type Phase = "mode" | "spin" | "setup" | "draft" | "sim" | "done";
@@ -82,6 +101,13 @@ export default function SoccerPage() {
     setPhase("sim");
   };
 
+  const startFromLineup = (placed: (SoccerPlayer | null)[]) => {
+    setAssignment(placed);
+    const xi = placed.slice(0, XI).filter(Boolean) as SoccerPlayer[];
+    setResult(simulateTournament(xi));
+    setPhase("sim");
+  };
+
   const reset = () => {
     setAssignment(Array(TOTAL).fill(null));
     setResult(null);
@@ -129,7 +155,25 @@ export default function SoccerPage() {
             />
           </motion.div>
         )}
-        {phase === "draft" && (
+        {phase === "draft" && mode === "spin" && (
+          <motion.div key="lineup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <LineupBuilder<SoccerPlayer>
+              variant="soccer"
+              accent="soccer"
+              slots={soccerSlots(formationName)}
+              pool={pool}
+              lockedId={lockedId}
+              initialPlaced={assignment}
+              eligible={soccerEligible}
+              roles={soccerRoles}
+              contextLabel={spinResult?.label ?? null}
+              confirmLabel="Confirm XI → Kick off"
+              onConfirm={startFromLineup}
+              onBack={() => setPhase("setup")}
+            />
+          </motion.div>
+        )}
+        {phase === "draft" && mode === "classic" && (
           <motion.div key="draft" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <Draft
               formationName={formationName}
