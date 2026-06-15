@@ -10,31 +10,63 @@ import {
   NBA_BENCH,
 } from "@/lib/nba/players";
 import { simulateSeason, teamRating } from "@/lib/nba/sim";
-import { NbaPlayer, NbaPosition, NbaSeasonResult } from "@/types";
+import { NbaPlayer, NbaPosition, NbaSeasonResult, SpinResult } from "@/types";
 import { useAuth } from "@/lib/auth";
 import { saveNbaResult } from "@/lib/store/leaderboard";
+import { SpinMachine } from "@/components/SpinMachine";
+import { ModePicker } from "@/components/ModePicker";
 
 const POSITIONS: (NbaPosition | "ALL")[] = ["ALL", "PG", "SG", "SF", "PF", "C"];
 
-type Phase = "draft" | "sim" | "done";
+type Phase = "mode" | "spin" | "draft" | "sim" | "done";
 
 export default function NbaPage() {
-  const [phase, setPhase] = useState<Phase>("draft");
+  const [phase, setPhase] = useState<Phase>("mode");
   const [starters, setStarters] = useState<NbaPlayer[]>([]);
   const [bench, setBench] = useState<NbaPlayer[]>([]);
   const [season, setSeason] = useState<NbaSeasonResult | null>(null);
 
+  // spin draft state
+  const [pool, setPool] = useState<NbaPlayer[]>(NBA_PLAYERS);
+  const [lockedId, setLockedId] = useState<string | null>(null);
+  const [contextLabel, setContextLabel] = useState<string | null>(null);
+
   const spent = useMemo(
-    () => [...starters, ...bench].reduce((a, p) => a + p.cost, 0),
-    [starters, bench]
+    () =>
+      [...starters, ...bench]
+        .filter((p) => p.id !== lockedId)
+        .reduce((a, p) => a + p.cost, 0),
+    [starters, bench, lockedId]
   );
   const remaining = NBA_SALARY_CAP - spent;
   const rating = useMemo(() => teamRating(starters, bench), [starters, bench]);
   const rosterFull = starters.length === NBA_STARTERS && bench.length === NBA_BENCH;
 
+  const startClassic = () => {
+    setPool(NBA_PLAYERS);
+    setLockedId(null);
+    setContextLabel(null);
+    setStarters([]);
+    setBench([]);
+    setPhase("draft");
+  };
+
+  const onSpinComplete = (result: SpinResult<NbaPlayer>) => {
+    const combined = [result.locked, ...result.teamPlayers, ...result.fillPlayers];
+    const seen = new Set<string>();
+    const deduped = combined.filter((p) =>
+      seen.has(p.id) ? false : (seen.add(p.id), true)
+    );
+    setPool(deduped);
+    setLockedId(result.locked.id);
+    setContextLabel(result.label);
+    setStarters([result.locked]);
+    setBench([]);
+    setPhase("draft");
+  };
+
   const startSeason = () => {
-    const result = simulateSeason(rating);
-    setSeason(result);
+    setSeason(simulateSeason(rating));
     setPhase("sim");
   };
 
@@ -42,7 +74,9 @@ export default function NbaPage() {
     setStarters([]);
     setBench([]);
     setSeason(null);
-    setPhase("draft");
+    setLockedId(null);
+    setContextLabel(null);
+    setPhase("mode");
   };
 
   return (
@@ -60,14 +94,29 @@ export default function NbaPage() {
       </div>
 
       <AnimatePresence mode="wait">
+        {phase === "mode" && (
+          <motion.div key="mode" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ModePicker
+              accent="nba"
+              onClassic={startClassic}
+              onSpin={() => setPhase("spin")}
+            />
+          </motion.div>
+        )}
+        {phase === "spin" && (
+          <motion.div key="spin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <SpinMachine sport="nba" onComplete={(r) => onSpinComplete(r as SpinResult<NbaPlayer>)} />
+            <button onClick={() => setPhase("mode")} className="btn-ghost mx-auto mt-4 block">
+              ← Back
+            </button>
+          </motion.div>
+        )}
         {phase === "draft" && (
-          <motion.div
-            key="draft"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+          <motion.div key="draft" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <DraftBoard
+              pool={pool}
+              lockedId={lockedId}
+              contextLabel={contextLabel}
               starters={starters}
               bench={bench}
               setStarters={setStarters}
@@ -76,24 +125,18 @@ export default function NbaPage() {
               rating={rating}
               rosterFull={rosterFull}
               onStart={startSeason}
+              onBack={() => setPhase("mode")}
             />
           </motion.div>
         )}
         {phase === "sim" && season && (
           <motion.div key="sim" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <SeasonSim
-              season={season}
-              onDone={() => setPhase("done")}
-            />
+            <SeasonSim season={season} onDone={() => setPhase("done")} />
           </motion.div>
         )}
         {phase === "done" && season && (
           <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <SeasonResult
-              season={season}
-              roster={[...starters, ...bench]}
-              onReset={reset}
-            />
+            <SeasonResult season={season} roster={[...starters, ...bench]} onReset={reset} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -103,6 +146,9 @@ export default function NbaPage() {
 
 /* ----------------------------- DRAFT ----------------------------- */
 function DraftBoard({
+  pool,
+  lockedId,
+  contextLabel,
   starters,
   bench,
   setStarters,
@@ -111,7 +157,11 @@ function DraftBoard({
   rating,
   rosterFull,
   onStart,
+  onBack,
 }: {
+  pool: NbaPlayer[];
+  lockedId: string | null;
+  contextLabel: string | null;
   starters: NbaPlayer[];
   bench: NbaPlayer[];
   setStarters: (v: NbaPlayer[]) => void;
@@ -120,17 +170,20 @@ function DraftBoard({
   rating: number;
   rosterFull: boolean;
   onStart: () => void;
+  onBack: () => void;
 }) {
   const [pos, setPos] = useState<(typeof POSITIONS)[number]>("ALL");
   const [query, setQuery] = useState("");
 
   const selectedIds = new Set([...starters, ...bench].map((p) => p.id));
 
-  const pool = useMemo(() => {
-    return NBA_PLAYERS.filter((p) => (pos === "ALL" ? true : p.position === pos))
+  const visiblePool = useMemo(() => {
+    return pool
+      .filter((p) => p.id !== lockedId)
+      .filter((p) => (pos === "ALL" ? true : p.position === pos))
       .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => b.overall - a.overall);
-  }, [pos, query]);
+  }, [pool, lockedId, pos, query]);
 
   const add = (p: NbaPlayer) => {
     if (selectedIds.has(p.id)) return;
@@ -140,14 +193,20 @@ function DraftBoard({
   };
 
   const remove = (p: NbaPlayer) => {
+    if (p.id === lockedId) return;
     setStarters(starters.filter((x) => x.id !== p.id));
     setBench(bench.filter((x) => x.id !== p.id));
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      {/* Pool */}
       <div>
+        {contextLabel && (
+          <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-sm">
+            🎰 Drafting <span className="font-bold text-amber-300">{contextLabel}</span>{" "}
+            <span className="text-white/40">· pick from this roster (+ decade fill)</span>
+          </div>
+        )}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {POSITIONS.map((p) => (
             <button
@@ -169,7 +228,7 @@ function DraftBoard({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {pool.map((p) => {
+          {visiblePool.map((p) => {
             const selected = selectedIds.has(p.id);
             const tooPricey = !selected && p.cost > remaining;
             return (
@@ -208,10 +267,14 @@ function DraftBoard({
               </button>
             );
           })}
+          {visiblePool.length === 0 && (
+            <div className="col-span-full rounded-xl border border-white/5 bg-panel/50 p-6 text-center text-sm text-white/40">
+              No players match.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Roster panel */}
       <aside className="lg:sticky lg:top-20 lg:self-start">
         <div className="card p-4">
           <div className="flex items-center justify-between">
@@ -228,12 +291,14 @@ function DraftBoard({
           <RosterGroup
             title={`Starters ${starters.length}/${NBA_STARTERS}`}
             players={starters}
+            lockedId={lockedId}
             onRemove={remove}
             color="border-nba/40"
           />
           <RosterGroup
             title={`Bench ${bench.length}/${NBA_BENCH}`}
             players={bench}
+            lockedId={lockedId}
             onRemove={remove}
             color="border-white/10"
           />
@@ -243,7 +308,12 @@ function DraftBoard({
             disabled={!rosterFull}
             className="btn mt-4 w-full bg-nba text-black hover:bg-nba-gold"
           >
-            {rosterFull ? "Start 82-Game Season →" : `Draft ${8 - starters.length - bench.length} more`}
+            {rosterFull
+              ? "Start 82-Game Season →"
+              : `Draft ${8 - starters.length - bench.length} more`}
+          </button>
+          <button onClick={onBack} className="btn-ghost mt-2 w-full text-sm">
+            ← Change mode
           </button>
         </div>
       </aside>
@@ -274,11 +344,13 @@ function Cap({ remaining }: { remaining: number }) {
 function RosterGroup({
   title,
   players,
+  lockedId,
   onRemove,
   color,
 }: {
   title: string;
   players: NbaPlayer[];
+  lockedId: string | null;
   onRemove: (p: NbaPlayer) => void;
   color: string;
 }) {
@@ -293,25 +365,35 @@ function RosterGroup({
             Empty
           </div>
         )}
-        {players.map((p) => (
-          <div
-            key={p.id}
-            className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm"
-          >
-            <div className="min-w-0">
-              <div className="truncate font-medium">{p.name}</div>
-              <div className="text-xs text-white/40">
-                {p.position} · {p.cost} pts
-              </div>
-            </div>
-            <button
-              onClick={() => onRemove(p)}
-              className="ml-2 text-white/30 hover:text-red-400"
+        {players.map((p) => {
+          const locked = p.id === lockedId;
+          return (
+            <div
+              key={p.id}
+              className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+                locked ? "border border-amber-400/50 bg-amber-400/10" : "bg-white/5"
+              }`}
             >
-              ✕
-            </button>
-          </div>
-        ))}
+              <div className="min-w-0">
+                <div className="truncate font-medium">
+                  {locked && "🔒 "}
+                  {p.name}
+                </div>
+                <div className="text-xs text-white/40">
+                  {p.position} · {locked ? "FREE" : `${p.cost} pts`}
+                </div>
+              </div>
+              {!locked && (
+                <button
+                  onClick={() => onRemove(p)}
+                  className="ml-2 text-white/30 hover:text-red-400"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -360,10 +442,7 @@ function SeasonSim({
         />
       </div>
 
-      <div
-        ref={listRef}
-        className="card max-h-80 space-y-1.5 overflow-y-auto p-3 text-left"
-      >
+      <div ref={listRef} className="card max-h-80 space-y-1.5 overflow-y-auto p-3 text-left">
         {games.map((g) => (
           <motion.div
             key={g.game}
@@ -378,11 +457,7 @@ function SeasonSim({
             <span className="font-semibold tabular-nums">
               {g.teamScore}–{g.oppScore}
             </span>
-            <span
-              className={`ml-3 w-5 text-center font-bold ${
-                g.win ? "text-nba" : "text-red-400"
-              }`}
-            >
+            <span className={`ml-3 w-5 text-center font-bold ${g.win ? "text-nba" : "text-red-400"}`}>
               {g.win ? "W" : "L"}
             </span>
           </motion.div>
@@ -462,7 +537,6 @@ function SeasonResult({
         </div>
       </div>
 
-      {/* Save */}
       <div className="card mt-6 p-4">
         {saved === "cloud" || saved === "local" ? (
           <div className="text-sm">
@@ -522,8 +596,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 function RatingBadge({ value }: { value: number }) {
-  const color =
-    value >= 95 ? "text-nba-gold" : value >= 90 ? "text-nba" : "text-white/70";
+  const color = value >= 95 ? "text-nba-gold" : value >= 90 ? "text-nba" : "text-white/70";
   return (
     <div className={`text-right ${color}`}>
       <div className="text-xl font-black leading-none">{value}</div>

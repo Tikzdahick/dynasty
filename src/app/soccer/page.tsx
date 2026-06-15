@@ -11,19 +11,23 @@ import {
   SoccerPlayer,
   SoccerPosition,
   SoccerTournamentResult,
+  SpinResult,
 } from "@/types";
 import { Pitch } from "@/components/Pitch";
 import { useAuth } from "@/lib/auth";
 import { saveSoccerResult } from "@/lib/store/leaderboard";
+import { SpinMachine } from "@/components/SpinMachine";
+import { ModePicker } from "@/components/ModePicker";
 
 type SubMode = "classic" | "iq";
-type Phase = "setup" | "draft" | "sim" | "done";
+type Phase = "mode" | "spin" | "setup" | "draft" | "sim" | "done";
 
 const XI = 11;
 const TOTAL = XI + SUB_REQUIREMENTS;
 
 export default function SoccerPage() {
-  const [phase, setPhase] = useState<Phase>("setup");
+  const [phase, setPhase] = useState<Phase>("mode");
+  const [mode, setMode] = useState<"classic" | "spin">("classic");
   const [subMode, setSubMode] = useState<SubMode>("classic");
   const [formationName, setFormationName] = useState<FormationName>("4-3-3");
   const [assignment, setAssignment] = useState<(SoccerPlayer | null)[]>(
@@ -31,8 +35,46 @@ export default function SoccerPage() {
   );
   const [result, setResult] = useState<SoccerTournamentResult | null>(null);
 
-  const formation = FORMATIONS[formationName];
-  const hideStats = subMode === "iq";
+  // spin state
+  const [spinResult, setSpinResult] = useState<SpinResult<SoccerPlayer> | null>(null);
+
+  const pool = useMemo(() => {
+    if (!spinResult) return SOCCER_PLAYERS;
+    const combined = [
+      spinResult.locked,
+      ...spinResult.teamPlayers,
+      ...spinResult.fillPlayers,
+    ];
+    const seen = new Set<string>();
+    return combined.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+  }, [spinResult]);
+
+  const lockedId = spinResult ? spinResult.locked.id : null;
+  const hideStats = mode === "classic" && subMode === "iq";
+
+  const startClassic = () => {
+    setMode("classic");
+    setSpinResult(null);
+    setPhase("setup");
+  };
+
+  const onSpinComplete = (r: SpinResult<SoccerPlayer>) => {
+    setMode("spin");
+    setSpinResult(r);
+    setSubMode("classic");
+    setPhase("setup");
+  };
+
+  const goToDraft = () => {
+    const next: (SoccerPlayer | null)[] = Array(TOTAL).fill(null);
+    if (spinResult) {
+      const slots = FORMATIONS[formationName].slots;
+      const idx = slots.findIndex((s) => s.position === spinResult.locked.position);
+      next[idx >= 0 ? idx : 0] = spinResult.locked;
+    }
+    setAssignment(next);
+    setPhase("draft");
+  };
 
   const start = () => {
     const xi = assignment.slice(0, XI).filter(Boolean) as SoccerPlayer[];
@@ -43,7 +85,8 @@ export default function SoccerPage() {
   const reset = () => {
     setAssignment(Array(TOTAL).fill(null));
     setResult(null);
-    setPhase("setup");
+    setSpinResult(null);
+    setPhase("mode");
   };
 
   return (
@@ -59,14 +102,30 @@ export default function SoccerPage() {
       </div>
 
       <AnimatePresence mode="wait">
+        {phase === "mode" && (
+          <motion.div key="mode" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ModePicker accent="soccer" onClassic={startClassic} onSpin={() => setPhase("spin")} />
+          </motion.div>
+        )}
+        {phase === "spin" && (
+          <motion.div key="spin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <SpinMachine sport="soccer" onComplete={(r) => onSpinComplete(r as SpinResult<SoccerPlayer>)} />
+            <button onClick={() => setPhase("mode")} className="btn-ghost mx-auto mt-4 block">
+              ← Back
+            </button>
+          </motion.div>
+        )}
         {phase === "setup" && (
           <motion.div key="setup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <Setup
+              showSubMode={mode === "classic"}
+              contextLabel={spinResult?.label ?? null}
               subMode={subMode}
               setSubMode={setSubMode}
               formationName={formationName}
               setFormationName={setFormationName}
-              onNext={() => setPhase("draft")}
+              onNext={goToDraft}
+              onBack={() => setPhase("mode")}
             />
           </motion.div>
         )}
@@ -77,6 +136,9 @@ export default function SoccerPage() {
               assignment={assignment}
               setAssignment={setAssignment}
               hideStats={hideStats}
+              pool={pool}
+              lockedId={lockedId}
+              contextLabel={spinResult?.label ?? null}
               onStart={start}
               onBack={() => setPhase("setup")}
             />
@@ -104,42 +166,43 @@ export default function SoccerPage() {
 
 /* ----------------------------- SETUP ----------------------------- */
 function Setup({
+  showSubMode,
+  contextLabel,
   subMode,
   setSubMode,
   formationName,
   setFormationName,
   onNext,
+  onBack,
 }: {
+  showSubMode: boolean;
+  contextLabel: string | null;
   subMode: SubMode;
   setSubMode: (m: SubMode) => void;
   formationName: FormationName;
   setFormationName: (f: FormationName) => void;
   onNext: () => void;
+  onBack: () => void;
 }) {
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <h2 className="mb-3 text-lg font-bold">1. Choose your challenge</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ChoiceCard
-            active={subMode === "classic"}
-            onClick={() => setSubMode("classic")}
-            title="Classic"
-            sub="Stats visible during the draft"
-            emoji="📊"
-          />
-          <ChoiceCard
-            active={subMode === "iq"}
-            onClick={() => setSubMode("iq")}
-            title="Soccer IQ"
-            sub="Stats hidden — draft from memory"
-            emoji="🧠"
-          />
+      {contextLabel && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-sm">
+          🎰 Drafting <span className="font-bold text-amber-300">{contextLabel}</span>
         </div>
-      </div>
+      )}
+      {showSubMode && (
+        <div>
+          <h2 className="mb-3 text-lg font-bold">1. Choose your challenge</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ChoiceCard active={subMode === "classic"} onClick={() => setSubMode("classic")} title="Classic" sub="Stats visible during the draft" emoji="📊" />
+            <ChoiceCard active={subMode === "iq"} onClick={() => setSubMode("iq")} title="Soccer IQ" sub="Stats hidden — draft from memory" emoji="🧠" />
+          </div>
+        </div>
+      )}
 
       <div>
-        <h2 className="mb-3 text-lg font-bold">2. Pick a formation</h2>
+        <h2 className="mb-3 text-lg font-bold">{showSubMode ? "2." : ""} Pick a formation</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {(Object.keys(FORMATIONS) as FormationName[]).map((f) => (
             <button
@@ -157,26 +220,19 @@ function Setup({
         </div>
       </div>
 
-      <button onClick={onNext} className="btn w-full bg-soccer text-black hover:bg-soccer-gold">
-        Continue to draft →
-      </button>
+      <div className="flex gap-2">
+        <button onClick={onBack} className="btn-ghost flex-1">
+          ← Back
+        </button>
+        <button onClick={onNext} className="btn flex-1 bg-soccer text-black hover:bg-soccer-gold">
+          Continue to draft →
+        </button>
+      </div>
     </div>
   );
 }
 
-function ChoiceCard({
-  active,
-  onClick,
-  title,
-  sub,
-  emoji,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  sub: string;
-  emoji: string;
-}) {
+function ChoiceCard({ active, onClick, title, sub, emoji }: { active: boolean; onClick: () => void; title: string; sub: string; emoji: string }) {
   return (
     <button
       onClick={onClick}
@@ -197,6 +253,9 @@ function Draft({
   assignment,
   setAssignment,
   hideStats,
+  pool,
+  lockedId,
+  contextLabel,
   onStart,
   onBack,
 }: {
@@ -204,54 +263,59 @@ function Draft({
   assignment: (SoccerPlayer | null)[];
   setAssignment: (v: (SoccerPlayer | null)[]) => void;
   hideStats: boolean;
+  pool: SoccerPlayer[];
+  lockedId: string | null;
+  contextLabel: string | null;
   onStart: () => void;
   onBack: () => void;
 }) {
   const formation = FORMATIONS[formationName];
-  const [active, setActive] = useState<number>(0);
+  const [active, setActive] = useState<number>(() =>
+    assignment.findIndex((x) => !x) === -1 ? 0 : assignment.findIndex((x) => !x)
+  );
   const [query, setQuery] = useState("");
 
-  const spent = assignment.reduce((a, p) => a + (p?.cost || 0), 0);
+  const spent = assignment.reduce(
+    (a, p) => a + (p && p.id !== lockedId ? p.cost : 0),
+    0
+  );
   const remaining = SOCCER_BUDGET - spent;
   const filled = assignment.filter(Boolean).length;
   const complete = filled === TOTAL;
   const selectedIds = new Set(assignment.filter(Boolean).map((p) => p!.id));
 
-  // required position for the active target (subs = any)
   const requiredPos: SoccerPosition | null =
     active < XI ? formation.slots[active].position : null;
 
-  const pool = useMemo(() => {
-    return SOCCER_PLAYERS.filter((p) =>
-      requiredPos ? p.position === requiredPos : true
-    )
+  const visiblePool = useMemo(() => {
+    return pool
+      .filter((p) => (requiredPos ? p.position === requiredPos : true))
       .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => b.overall - a.overall);
-  }, [requiredPos, query]);
+  }, [pool, requiredPos, query]);
+
+  const lockedActive = assignment[active]?.id === lockedId;
 
   const assign = (p: SoccerPlayer) => {
+    if (lockedActive) return;
     if (selectedIds.has(p.id)) return;
     if (p.cost > remaining + (assignment[active]?.cost || 0)) return;
     const next = [...assignment];
     next[active] = p;
     setAssignment(next);
-    // jump to next empty target
     const nextEmpty = next.findIndex((x, i) => i > active && !x);
     const anyEmpty = next.findIndex((x) => !x);
     setActive(nextEmpty !== -1 ? nextEmpty : anyEmpty !== -1 ? anyEmpty : active);
   };
 
-  const clearSlot = (i: number) => {
-    const next = [...assignment];
-    next[i] = null;
-    setAssignment(next);
-    setActive(i);
-  };
-
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      {/* Pitch + subs */}
       <div>
+        {contextLabel && (
+          <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-xs">
+            🎰 <span className="font-bold text-amber-300">{contextLabel}</span> · star locked
+          </div>
+        )}
         <Pitch
           formation={formation}
           assignment={assignment.slice(0, XI)}
@@ -280,11 +344,7 @@ function Draft({
                       : "border-dashed border-white/20 bg-panel/40 text-white/40"
                   }`}
                 >
-                  {p ? (
-                    <span className="font-medium">{p.name.split(" ").slice(-1)[0]}</span>
-                  ) : (
-                    "Sub"
-                  )}
+                  {p ? <span className="font-medium">{p.name.split(" ").slice(-1)[0]}</span> : "Sub"}
                 </button>
               );
             })}
@@ -309,13 +369,16 @@ function Draft({
         </div>
       </div>
 
-      {/* Pool */}
       <div>
         <div className="mb-3 flex items-center gap-2">
           <div className="text-sm text-white/60">
             Picking:{" "}
             <span className="font-bold text-soccer">
-              {active < XI ? `${requiredPos} (slot ${active + 1})` : `Sub ${active - XI + 1} (any)`}
+              {lockedActive
+                ? "🔒 Locked star (pick another slot)"
+                : active < XI
+                ? `${requiredPos} (slot ${active + 1})`
+                : `Sub ${active - XI + 1} (any)`}
             </span>
           </div>
           <input
@@ -327,18 +390,17 @@ function Draft({
         </div>
 
         <div className="grid max-h-[560px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-          {pool.map((p) => {
+          {visiblePool.map((p) => {
             const selected = selectedIds.has(p.id);
             const affordable = p.cost <= remaining + (assignment[active]?.cost || 0);
+            const disabled = selected || !affordable || lockedActive;
             return (
               <button
                 key={p.id}
                 onClick={() => assign(p)}
-                disabled={selected || !affordable}
+                disabled={disabled}
                 className={`rounded-xl border p-3 text-left transition ${
-                  selected
-                    ? "border-white/5 bg-panel/40 opacity-40"
-                    : !affordable
+                  disabled
                     ? "border-white/5 bg-panel/40 opacity-40"
                     : "border-white/10 bg-panel hover:border-soccer/50 hover:-translate-y-0.5"
                 }`}
@@ -368,13 +430,16 @@ function Draft({
               </button>
             );
           })}
+          {visiblePool.length === 0 && (
+            <div className="col-span-full rounded-xl border border-white/5 bg-panel/50 p-6 text-center text-sm text-white/40">
+              No players available for this slot.
+            </div>
+          )}
         </div>
 
-        {assignment.some(Boolean) && (
-          <div className="mt-3 text-xs text-white/40">
-            Tap a player on the pitch to replace them.
-          </div>
-        )}
+        <div className="mt-3 text-xs text-white/40">
+          Tap a player on the pitch to replace them. The 🔒 locked star can&apos;t be removed.
+        </div>
       </div>
     </div>
   );
@@ -430,26 +495,18 @@ function TournamentSim({
 
   return (
     <div className="mx-auto max-w-lg">
-      <p className="text-center text-sm uppercase tracking-[0.3em] text-white/40">
-        Tournament
-      </p>
+      <p className="text-center text-sm uppercase tracking-[0.3em] text-white/40">Tournament</p>
       <div className="mt-4 space-y-2">
         {result.matches.slice(0, shown).map((m, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`card p-4 ${
-              m.win ? "border-soccer/40" : "border-red-500/40"
-            }`}
+            className={`card p-4 ${m.win ? "border-soccer/40" : "border-red-500/40"}`}
           >
             <div className="flex items-center justify-between text-xs text-white/40">
               <span>{m.round}</span>
-              <span
-                className={`font-bold ${
-                  m.win ? "text-soccer" : m.draw ? "text-white/60" : "text-red-400"
-                }`}
-              >
+              <span className={`font-bold ${m.win ? "text-soccer" : m.draw ? "text-white/60" : "text-red-400"}`}>
                 {m.win ? "WIN" : m.draw ? "DRAW" : "OUT"}
               </span>
             </div>
@@ -469,7 +526,7 @@ function TournamentSim({
             {m.scorers.length > 0 && (
               <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-white/50">
                 {m.scorers.map((s, j) => (
-                  <span key={j}>⚽ {s.name} {s.minute}'</span>
+                  <span key={j}>⚽ {s.name} {s.minute}&apos;</span>
                 ))}
               </div>
             )}
@@ -532,9 +589,7 @@ function TournamentResult({
       </motion.div>
 
       <div className="card mt-6 p-4 text-left">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">
-          Your XI
-        </div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Your XI</div>
         <div className="flex flex-wrap gap-1.5">
           {xi.map((p) => (
             <span key={p.id} className="rounded-lg bg-white/5 px-2 py-1 text-xs">

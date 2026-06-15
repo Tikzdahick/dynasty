@@ -83,6 +83,45 @@ export interface SoccerTournamentResult {
   teamRating: number;
 }
 
+// ---------- Spin draft ----------
+export type Decade =
+  | "1950s"
+  | "1960s"
+  | "1970s"
+  | "1980s"
+  | "1990s"
+  | "2000s"
+  | "2010s"
+  | "2020s";
+
+export const DECADES: Decade[] = [
+  "1950s",
+  "1960s",
+  "1970s",
+  "1980s",
+  "1990s",
+  "2000s",
+  "2010s",
+  "2020s",
+];
+
+export interface IconicTeam<P> {
+  decade: Decade;
+  team: string; // franchise / nation name shown on the reel
+  label: string; // e.g. "1980s Lakers (Showtime)"
+  players: P[];
+}
+
+export interface SpinResult<P> {
+  decade: Decade;
+  team: string;
+  label: string;
+  source: "iconic" | "decade"; // iconic roster vs decade-pool fallback
+  locked: P; // auto-locked best player (free)
+  teamPlayers: P[]; // the team's real roster for that decade
+  fillPlayers: P[]; // decade-pool players to fill gaps
+}
+
 // ---------- Leaderboard ----------
 export interface NbaLeaderboardEntry {
   id: string;
