@@ -43,6 +43,18 @@ const TEAMS: RawTeam[] = [
     { name: "Luke Jackson", position: "PF", ppg: 12.0, rpg: 11.9, apg: 1.8, overall: 80 },
     { name: "Billy Cunningham", position: "SF", ppg: 21.2, rpg: 10.4, apg: 4.0, overall: 87 },
   ]},
+  { decade: "1960s", team: "Lakers", label: "1960s Los Angeles Lakers", players: [
+    { name: "Jerry West", position: "PG", ppg: 27.0, rpg: 5.8, apg: 6.7, overall: 92 },
+    { name: "Elgin Baylor", position: "SF", ppg: 27.4, rpg: 13.5, apg: 4.3, overall: 91 },
+    { name: "Rudy LaRusso", position: "PF", ppg: 15.6, rpg: 9.4, apg: 2.0, overall: 81 },
+    { name: "Walt Hazzard", position: "PG", ppg: 14.0, rpg: 3.5, apg: 5.0, overall: 80 },
+  ]},
+  { decade: "1970s", team: "Bucks", label: "1970s Milwaukee Bucks", players: [
+    { name: "Kareem Abdul-Jabbar", position: "C", ppg: 30.0, rpg: 15.0, apg: 4.3, overall: 96 },
+    { name: "Oscar Robertson", position: "PG", ppg: 19.4, rpg: 6.0, apg: 8.2, overall: 90 },
+    { name: "Bob Dandridge", position: "SF", ppg: 18.4, rpg: 7.0, apg: 3.2, overall: 84 },
+    { name: "Jon McGlocklin", position: "SG", ppg: 12.0, rpg: 2.6, apg: 3.4, overall: 79 },
+  ]},
   { decade: "1970s", team: "Knicks", label: "1970s New York Knicks", players: [
     { name: "Walt Frazier", position: "PG", ppg: 18.9, rpg: 5.9, apg: 6.1, overall: 90 },
     { name: "Earl Monroe", position: "SG", ppg: 18.8, rpg: 3.0, apg: 3.9, overall: 87 },
