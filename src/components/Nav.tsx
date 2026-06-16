@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/profile", label: "Profile" },
+  { href: "/", label: "Home", desktopOnly: false },
+  { href: "/leaderboard", label: "Leaderboard", desktopOnly: false },
+  { href: "/how-to-play", label: "How to Play", desktopOnly: true },
+  { href: "/profile", label: "Profile", desktopOnly: false },
 ];
 
 export function Nav() {
@@ -33,8 +34,8 @@ export function Nav() {
                 key={l.href}
                 href={l.href}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  active ? "bg-white/10 text-white" : "text-white/55 hover:text-white"
-                }`}
+                  l.desktopOnly ? "hidden sm:inline-flex" : ""
+                } ${active ? "bg-white/10 text-white" : "text-white/55 hover:text-white"}`}
               >
                 {l.label}
               </Link>

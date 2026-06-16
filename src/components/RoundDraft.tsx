@@ -129,7 +129,7 @@ export function RoundDraft<T extends P>({
   };
 
   const doSelect = () => {
-    setLabel(`${decade} ${team}`);
+    setLabel(deck.labelFor(decade, team));
     setCandidates(computeCandidates(decade, team));
     setStep("reveal");
   };
@@ -144,7 +144,7 @@ export function RoundDraft<T extends P>({
         : deck.teams[Math.floor(r() * deck.teams.length)];
     setTeam(t);
     setReelTeam(t);
-    setLabel(deck.iconicTeamsIn(decade).includes(t) ? `${decade} ${t}` : `${decade} ${t}`);
+    setLabel(deck.labelFor(decade, t));
     setCandidates(computeCandidates(decade, t));
     setSkips((s) => ({ ...s, team: s.team - 1 }));
   };
@@ -155,6 +155,7 @@ export function RoundDraft<T extends P>({
     const d = DECADES[Math.floor(r() * DECADES.length)];
     setDecade(d);
     setReelDecade(d);
+    setLabel(deck.labelFor(d, team));
     setCandidates(computeCandidates(d, team));
     setSkips((s) => ({ ...s, era: s.era - 1 }));
   };
@@ -264,6 +265,9 @@ export function RoundDraft<T extends P>({
               </>
             )}
           </div>
+          {leftover.length > 0 && step !== "bench" && (
+            <div className="text-xs text-white/35">🪑 {leftover.length} in leftover pool</div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {allowSkips && step !== "bench" && (
@@ -425,13 +429,17 @@ export function RoundDraft<T extends P>({
             onSlotClick={clickSlot}
             label={variant === "nba" ? "Bench" : "Substitutes"}
           />
-          <button
+          <motion.button
             onClick={() => onConfirm(placed)}
             disabled={!complete}
-            className={`btn mt-4 w-full ${accentBg} text-black hover:opacity-90`}
+            animate={complete ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+            transition={complete ? { repeat: Infinity, duration: 1.6 } : { duration: 0.2 }}
+            className={`btn mt-4 w-full ${
+              complete ? `${accentBg} text-black hover:opacity-90` : "cursor-default bg-white/5 text-white/40"
+            }`}
           >
-            {complete ? confirmLabel : `Draft in progress…`}
-          </button>
+            {complete ? confirmLabel : "Draft in progress…"}
+          </motion.button>
         </div>
       </div>
     </div>
@@ -463,7 +471,7 @@ function Reels({
             {r.label}
           </div>
           <div
-            className={`flex h-20 items-center justify-center overflow-hidden rounded-xl border-2 bg-panel px-2 ${
+            className={`relative flex h-20 items-center justify-center overflow-hidden rounded-xl border-2 bg-panel px-2 ${
               spinning ? "border-white/10" : `${border} shadow-[0_0_22px_-6px] shadow-white/20`
             }`}
           >
@@ -476,6 +484,8 @@ function Reels({
             >
               {r.value}
             </motion.span>
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-panel to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-panel to-transparent" />
           </div>
         </div>
       ))}

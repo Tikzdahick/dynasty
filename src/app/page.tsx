@@ -1,12 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
+const LEGENDS = [
+  "Michael Jordan", "Pelé", "LeBron James", "Maradona", "Kareem", "Messi",
+  "Magic Johnson", "Cristiano Ronaldo", "Larry Bird", "Zidane", "Kobe Bryant",
+  "Cruyff", "Shaq", "Beckenbauer", "Curry", "Ronaldinho", "Hakeem", "Xavi",
+  "Duncan", "Maldini", "Giannis", "Iniesta", "Jokić", "Puskás", "Wilt", "Buffon",
+];
+
 export default function HomePage() {
+  const router = useRouter();
+
+  const playDaily = (sport: "nba" | "soccer") => {
+    sessionStorage.setItem(`dynasty.${sport}.mode`, "daily");
+    router.push(`/${sport}/draft`);
+  };
+
   return (
     <div className="bg-grain">
-      {/* Hero */}
       <section className="relative overflow-hidden pt-10 sm:pt-16">
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-nba/20 blur-[120px]" />
@@ -20,7 +34,7 @@ export default function HomePage() {
           className="text-center"
         >
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-            Fantasy Draft · Simulation
+            Spin · Draft · Simulate
           </p>
           <h1 className="text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl">
             <span className="bg-gradient-to-r from-nba via-amber-300 to-soccer bg-clip-text text-transparent">
@@ -33,13 +47,13 @@ export default function HomePage() {
         </motion.div>
 
         {/* Mode cards */}
-        <div className="mx-auto mt-12 grid max-w-4xl gap-5 sm:grid-cols-2 sm:mt-16">
+        <div className="mx-auto mt-12 grid max-w-4xl gap-5 sm:mt-16 sm:grid-cols-2">
           <ModeCard
             href="/nba"
             emoji="🏀"
             title="NBA Mode"
             sub="Can you go 82-0?"
-            blurb="Draft 8 all-time greats under a salary cap and simulate an undefeated season."
+            blurb="Spin round by round, draft 8 legends across the decades, and simulate an undefeated 82-game season."
             from="from-nba/30"
             ring="hover:border-nba/50"
             accent="text-nba"
@@ -50,7 +64,7 @@ export default function HomePage() {
             emoji="⚽"
             title="Soccer Mode"
             sub="Can you win the trophy?"
-            blurb="Pick a formation, draft an all-time XI, and conquer a 7-game World Cup run."
+            blurb="Pick a formation, spin for icons to fill your XI, and conquer a 7-game World Cup run."
             from="from-soccer/30"
             ring="hover:border-soccer/50"
             accent="text-soccer"
@@ -58,23 +72,79 @@ export default function HomePage() {
           />
         </div>
 
+        {/* Daily Challenge */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mx-auto mt-5 flex max-w-4xl flex-col items-center justify-between gap-3 rounded-2xl border border-white/10 bg-panel/70 p-4 sm:flex-row"
+        >
+          <div className="text-center sm:text-left">
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
+              <span className="text-xl">📅</span>
+              <span className="font-bold">Daily Challenge</span>
+            </div>
+            <p className="mt-0.5 text-sm text-white/50">
+              Everyone drafts the same spins today. No skips — just instincts.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => playDaily("nba")}
+              className="btn bg-nba/90 px-4 py-2 text-sm text-black hover:bg-nba"
+            >
+              🏀 Today
+            </button>
+            <button
+              onClick={() => playDaily("soccer")}
+              className="btn bg-soccer/90 px-4 py-2 text-sm text-black hover:bg-soccer"
+            >
+              ⚽ Today
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Feature chips */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-3 text-center text-sm text-white/40"
+          className="mx-auto mt-8 flex max-w-4xl flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-sm text-white/40"
         >
-          <span>50+ NBA legends</span>
-          <span className="text-white/15">•</span>
-          <span>60+ football icons</span>
-          <span className="text-white/15">•</span>
+          <span>Round-by-round draft</span>
+          <Dot />
+          <span>110+ legends</span>
+          <Dot />
           <span>Global leaderboard</span>
-          <span className="text-white/15">•</span>
-          <span>Play as guest</span>
+          <Dot />
+          <Link href="/how-to-play" className="text-white/60 underline-offset-2 hover:text-white hover:underline">
+            How to play
+          </Link>
         </motion.div>
       </section>
+
+      {/* Legends marquee */}
+      <div className="relative mt-12 overflow-hidden border-y border-white/5 py-4">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-ink to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-ink to-transparent" />
+        <motion.div
+          className="flex w-max gap-8 whitespace-nowrap"
+          animate={{ x: ["0%", "-50%"] }}
+          transition={{ duration: 30, ease: "linear", repeat: Infinity }}
+        >
+          {[...LEGENDS, ...LEGENDS].map((n, i) => (
+            <span key={i} className="text-sm font-semibold tracking-wide text-white/25">
+              {n}
+            </span>
+          ))}
+        </motion.div>
+      </div>
     </div>
   );
+}
+
+function Dot() {
+  return <span className="text-white/15">•</span>;
 }
 
 function ModeCard({

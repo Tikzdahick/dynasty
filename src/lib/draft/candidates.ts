@@ -32,6 +32,7 @@ export interface Deck<P> {
   eligible: (p: P) => string[];
   roles: (p: P) => string[];
   statBars: (p: P) => StatBar[];
+  labelFor: (decade: Decade, team: string) => string;
 }
 
 function clamp(n: number): number {
@@ -93,7 +94,7 @@ function makeDeck<P extends { id: string; overall: number }>(
     return out;
   };
 
-  return { teams, iconicTeamsIn, spin, candidates, eligible, roles, statBars };
+  return { teams, iconicTeamsIn, spin, candidates, eligible, roles, statBars, labelFor };
 }
 
 export const nbaDeck: Deck<NbaPlayer> = makeDeck(
