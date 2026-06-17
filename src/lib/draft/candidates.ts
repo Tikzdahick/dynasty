@@ -1,16 +1,6 @@
 import { Decade, DECADES, IconicTeam, NbaPlayer, SoccerPlayer } from "@/types";
-import {
-  NBA_ICONIC,
-  NBA_MASTER,
-  NBA_FRANCHISES,
-  nbaDecadePool,
-} from "@/lib/nba/teams";
-import {
-  SOCCER_ICONIC,
-  SOCCER_MASTER,
-  SOCCER_TEAMS,
-  soccerDecadePool,
-} from "@/lib/soccer/teams";
+import { NBA_ICONIC } from "@/lib/nba/teams";
+import { SOCCER_ICONIC } from "@/lib/soccer/teams";
 import { nbaEligible, nbaRoles } from "@/lib/nba/eligibility";
 import { soccerEligible, soccerRoles } from "@/lib/soccer/eligibility";
 
@@ -41,13 +31,16 @@ function clamp(n: number): number {
 
 function makeDeck<P extends { id: string; overall: number }>(
   iconic: IconicTeam<P>[],
-  decadePool: (d: Decade) => P[],
-  master: P[],
-  teams: string[],
   eligible: (p: P) => string[],
   roles: (p: P) => string[],
   statBars: (p: P) => StatBar[]
 ): Deck<P> {
+  // Only teams with a real, verified roster are spinnable / selectable.
+  const teams = [...new Set(iconic.map((t) => t.team))];
+  const decadesWithTeams = DECADES.filter((d) =>
+    iconic.some((t) => t.decade === d)
+  );
+
   const iconicTeamsIn = (decade: Decade) =>
     iconic.filter((t) => t.decade === decade).map((t) => t.team);
 
@@ -56,42 +49,31 @@ function makeDeck<P extends { id: string; overall: number }>(
     `${decade} ${team}`;
 
   const spin = (rng: () => number) => {
-    const decade = DECADES[Math.floor(rng() * DECADES.length)];
+    const decade =
+      decadesWithTeams[Math.floor(rng() * decadesWithTeams.length)];
     const inDecade = iconicTeamsIn(decade);
-    const team =
-      inDecade.length && rng() < 0.6
-        ? inDecade[Math.floor(rng() * inDecade.length)]
-        : teams[Math.floor(rng() * teams.length)];
+    const team = inDecade[Math.floor(rng() * inDecade.length)];
     return { decade, team, label: labelFor(decade, team) };
   };
 
+  // STRICT player–team rule: only ever surface players who actually played
+  // for this exact team in this exact decade. Never pad from a broader pool —
+  // that's what used to put Jordan/Hakeem/Malone/Barkley on the "1990s Lakers".
   const candidates = (
     decade: Decade,
     team: string,
     exclude: Set<string>,
     openPositions: Set<string> | null
   ): P[] => {
+    const t = iconic.find((x) => x.decade === decade && x.team === team);
+    if (!t) return [];
     const ok = (p: P) =>
       !exclude.has(p.id) &&
       (!openPositions || eligible(p).some((pos) => openPositions.has(pos)));
-    const byOvr = (arr: P[]) => [...arr].sort((a, b) => b.overall - a.overall);
-
-    const out: P[] = [];
-    const seen = new Set<string>();
-    const push = (arr: P[]) => {
-      for (const p of byOvr(arr)) {
-        if (out.length >= 4) break;
-        if (seen.has(p.id) || !ok(p)) continue;
-        seen.add(p.id);
-        out.push(p);
-      }
-    };
-
-    const t = iconic.find((x) => x.decade === decade && x.team === team);
-    if (t) push(t.players);
-    if (out.length < 4) push(decadePool(decade));
-    if (out.length < 4) push(master);
-    return out;
+    return [...t.players]
+      .sort((a, b) => b.overall - a.overall)
+      .filter(ok)
+      .slice(0, 4);
   };
 
   return { teams, iconicTeamsIn, spin, candidates, eligible, roles, statBars, labelFor };
@@ -99,9 +81,6 @@ function makeDeck<P extends { id: string; overall: number }>(
 
 export const nbaDeck: Deck<NbaPlayer> = makeDeck(
   NBA_ICONIC,
-  nbaDecadePool,
-  NBA_MASTER,
-  NBA_FRANCHISES,
   nbaEligible,
   nbaRoles,
   (p) => [
@@ -114,9 +93,6 @@ export const nbaDeck: Deck<NbaPlayer> = makeDeck(
 
 export const soccerDeck: Deck<SoccerPlayer> = makeDeck(
   SOCCER_ICONIC,
-  soccerDecadePool,
-  SOCCER_MASTER,
-  SOCCER_TEAMS,
   soccerEligible,
   soccerRoles,
   (p) => [

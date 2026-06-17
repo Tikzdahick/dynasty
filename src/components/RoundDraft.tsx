@@ -126,6 +126,14 @@ export function RoundDraft<T extends P>({
   };
   useEffect(() => () => clearTimeout(peekTimer.current), []);
 
+  // Team Draft: make sure the initial team is one that exists in the decade
+  useEffect(() => {
+    if (mode !== "team") return;
+    const opts = deck.iconicTeamsIn(decade);
+    if (opts.length && !opts.includes(team)) setTeam(opts[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   // 20s round timer: shrink, then auto-pick a random card when it hits zero
   useEffect(() => {
     if (!timed || step !== "reveal" || candidates.length === 0) return;
@@ -150,7 +158,13 @@ export function RoundDraft<T extends P>({
   const doSpin = () => {
     if (spinning) return;
     const r = rng.current;
-    const result = deck.spin(r);
+    // re-roll until we land on a team that can actually fill an open slot
+    let result = deck.spin(r);
+    let cands = computeCandidates(result.decade, result.team);
+    for (let i = 0; i < 40 && cands.length === 0; i++) {
+      result = deck.spin(r);
+      cands = computeCandidates(result.decade, result.team);
+    }
     setSpinning(true);
     setPending(null);
 
@@ -175,7 +189,7 @@ export function RoundDraft<T extends P>({
         setDecade(result.decade);
         setTeam(result.team);
         setLabel(result.label);
-        setCandidates(computeCandidates(result.decade, result.team));
+        setCandidates(cands);
         setSpinning(false);
         setStep("reveal");
       }, 2300)
@@ -191,11 +205,13 @@ export function RoundDraft<T extends P>({
   const reSpinKeepDecade = () => {
     if (skips.team <= 0) return;
     const r = rng.current;
-    const inDecade = deck.iconicTeamsIn(decade);
-    const t =
-      inDecade.length && r() < 0.6
-        ? inDecade[Math.floor(r() * inDecade.length)]
-        : deck.teams[Math.floor(r() * deck.teams.length)];
+    // only real teams from this decade that can still fill an open slot
+    const opts = shuffle(
+      deck.iconicTeamsIn(decade).filter((t) => t !== team),
+      r
+    );
+    const t = opts.find((x) => computeCandidates(decade, x).length > 0);
+    if (!t) return;
     setTeam(t);
     setReelTeam(t);
     setLabel(deck.labelFor(decade, t));
@@ -206,7 +222,13 @@ export function RoundDraft<T extends P>({
   const reSpinKeepTeam = () => {
     if (skips.era <= 0) return;
     const r = rng.current;
-    const d = DECADES[Math.floor(r() * DECADES.length)];
+    // only decades where this team actually existed and can fill an open slot
+    const opts = shuffle(
+      DECADES.filter((d) => d !== decade && deck.iconicTeamsIn(d).includes(team)),
+      r
+    );
+    const d = opts.find((x) => computeCandidates(x, team).length > 0);
+    if (!d) return;
     setDecade(d);
     setReelDecade(d);
     setLabel(deck.labelFor(d, team));
@@ -377,10 +399,15 @@ export function RoundDraft<T extends P>({
               <div className="grid grid-cols-2 gap-2">
                 <select
                   value={decade}
-                  onChange={(e) => setDecade(e.target.value as Decade)}
+                  onChange={(e) => {
+                    const d = e.target.value as Decade;
+                    setDecade(d);
+                    const opts = deck.iconicTeamsIn(d);
+                    if (opts.length && !opts.includes(team)) setTeam(opts[0]);
+                  }}
                   className="rounded-lg border border-white/10 bg-panel px-3 py-2 text-sm"
                 >
-                  {DECADES.map((d) => (
+                  {DECADES.filter((d) => deck.iconicTeamsIn(d).length > 0).map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
@@ -389,8 +416,8 @@ export function RoundDraft<T extends P>({
                   onChange={(e) => setTeam(e.target.value)}
                   className="rounded-lg border border-white/10 bg-panel px-3 py-2 text-sm"
                 >
-                  {deck.teams.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  {deck.iconicTeamsIn(decade).map((t) => (
+                    <option key={t} value={t}>{deck.labelFor(decade, t)}</option>
                   ))}
                 </select>
               </div>
@@ -418,6 +445,12 @@ export function RoundDraft<T extends P>({
 
               {timed && step === "reveal" && <TimerBar remaining={remaining} />}
 
+              {candidates.length === 0 && (
+                <div className="rounded-xl border border-white/5 bg-panel/40 p-5 text-center text-sm text-white/50">
+                  No {label} players fit your open slots.{" "}
+                  {mode === "team" ? "Pick another team or decade above." : "Use a skip or spin again."}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                 {candidates.map((p, idx) => (
                   <CandidateCard
@@ -709,4 +742,13 @@ function SkipBtn({ label, disabled, onClick }: { label: string; disabled: boolea
 function initials(name: string): string {
   const parts = name.split(" ");
   return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
+}
+
+function shuffle<X>(arr: X[], rng: () => number): X[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
