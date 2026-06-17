@@ -37,10 +37,27 @@ function soccerSlots(formationName: FormationName): SlotDef[] {
 }
 
 type Phase = "formation" | "draft" | "summary" | "sim" | "done";
+type GhostSoccer = SoccerPlayer & { ghost?: boolean };
+
+// Decoy ("ghost") players flash inflated stats during the draft but
+// perform significantly worse in the simulated tournament.
+function weakenGhost(p: SoccerPlayer): SoccerPlayer {
+  const g = p as GhostSoccer;
+  if (!g.ghost) return p;
+  return {
+    ...g,
+    overall: Math.round(g.overall * 0.78),
+    pace: Math.round(g.pace * 0.82),
+    shooting: Math.round(g.shooting * 0.82),
+    passing: Math.round(g.passing * 0.82),
+    defending: Math.round(g.defending * 0.82),
+  };
+}
 
 export default function SoccerDraftPage() {
   const router = useRouter();
   const [mode, setMode] = useState<DraftMode | null>(null);
+  const [timed, setTimed] = useState(false);
   const [phase, setPhase] = useState<Phase>("formation");
   const [formationName, setFormationName] = useState<FormationName>("4-3-3");
   const [placed, setPlaced] = useState<(SoccerPlayer | null)[]>([]);
@@ -50,6 +67,7 @@ export default function SoccerDraftPage() {
 
   useEffect(() => {
     setMode((sessionStorage.getItem("dynasty.soccer.mode") as DraftMode) || "classic");
+    setTimed(sessionStorage.getItem("dynasty.soccer.timer") === "1");
   }, []);
 
   const onConfirm = (next: (SoccerPlayer | null)[]) => {
@@ -62,12 +80,12 @@ export default function SoccerDraftPage() {
   };
 
   const simulate = () => {
-    setResult(simulateTournament(xi, chemistry?.pct ?? 0));
+    setResult(simulateTournament(xi.map(weakenGhost), chemistry?.pct ?? 0));
     setPhase("sim");
   };
 
   const teamRating = xi.length
-    ? Math.round((xi.reduce((a, p) => a + p.overall, 0) / xi.length) * 10) / 10
+    ? Math.round((xi.map(weakenGhost).reduce((a, p) => a + p.overall, 0) / xi.length) * 10) / 10
     : 0;
 
   if (!mode) return null;
@@ -109,7 +127,8 @@ export default function SoccerDraftPage() {
               benchCount={3}
               deck={soccerDeck}
               mode={mode}
-              contextLabel={`Soccer · ${formationName} · ${labelFor(mode)}`}
+              timed={timed}
+              contextLabel={`Soccer · ${formationName} · ${labelFor(mode)}${timed ? " · ⏱ Timed" : ""}`}
               confirmLabel="Confirm XI →"
               onConfirm={onConfirm}
               onExit={() => router.push("/soccer")}
@@ -260,10 +279,24 @@ function TournamentResult({
       <div className="card mt-6 p-4 text-left">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Your XI</div>
         <div className="flex flex-wrap gap-1.5">
-          {xi.map((p) => (
-            <span key={p.id} className="rounded-lg bg-white/5 px-2 py-1 text-xs">{p.name}</span>
-          ))}
+          {xi.map((p) => {
+            const ghost = (p as GhostSoccer).ghost;
+            return (
+              <span
+                key={p.id}
+                className={`rounded-lg px-2 py-1 text-xs ${ghost ? "bg-red-500/15 text-red-300 ring-1 ring-red-500/30" : "bg-white/5"}`}
+              >
+                {ghost && "🫥 "}
+                {p.name}
+              </span>
+            );
+          })}
         </div>
+        {xi.some((p) => (p as GhostSoccer).ghost) && (
+          <p className="mt-2 text-[11px] italic text-red-300/70">
+            🫥 Ghost busted — a decoy you drafted played well below its flashy card.
+          </p>
+        )}
       </div>
 
       <div className="card mt-6 p-4">

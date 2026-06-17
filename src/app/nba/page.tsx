@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -7,15 +8,17 @@ import { DraftMode } from "@/components/RoundDraft";
 
 const MODES: { mode: DraftMode; emoji: string; title: string; blurb: string }[] = [
   { mode: "classic", emoji: "📊", title: "Classic", blurb: "Full player stats visible during the draft." },
-  { mode: "iq", emoji: "🧠", title: "Hoop IQ", blurb: "Stats hidden — draft from memory alone." },
+  { mode: "iq", emoji: "🧠", title: "Hoop IQ", blurb: "Stats hidden — peek 2s per card. Watch for decoys." },
   { mode: "daily", emoji: "📅", title: "Daily Challenge", blurb: "Everyone gets the same spins today. No skips." },
   { mode: "team", emoji: "🎯", title: "Team Draft", blurb: "Choose your own decade & team each round." },
 ];
 
 export default function NbaModeSelect() {
   const router = useRouter();
+  const [timed, setTimed] = useState(false);
   const go = (mode: DraftMode) => {
     sessionStorage.setItem("dynasty.nba.mode", mode);
+    sessionStorage.setItem("dynasty.nba.timer", timed ? "1" : "0");
     router.push("/nba/draft");
   };
 
@@ -56,6 +59,25 @@ export default function NbaModeSelect() {
           </motion.button>
         ))}
       </div>
+
+      <button
+        onClick={() => setTimed((t) => !t)}
+        className={`mt-4 flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
+          timed ? "border-nba/60 bg-nba/10" : "border-white/10 bg-panel hover:border-white/20"
+        }`}
+      >
+        <div>
+          <div className="font-bold">⏱ Timer Mode</div>
+          <div className="text-sm text-white/55">20s per round — run out of time and a random card is auto-drafted.</div>
+        </div>
+        <span
+          className={`relative h-6 w-11 shrink-0 rounded-full transition ${timed ? "bg-nba" : "bg-white/15"}`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${timed ? "left-[22px]" : "left-0.5"}`}
+          />
+        </span>
+      </button>
     </div>
   );
 }

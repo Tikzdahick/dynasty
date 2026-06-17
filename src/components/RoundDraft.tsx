@@ -10,6 +10,9 @@ import { mulberry32, dailySeed } from "@/lib/rng";
 export type DraftMode = "classic" | "iq" | "daily" | "team";
 
 type P = CourtPlayer & { name: string; overall: number };
+type Card<T> = T & { ghost?: boolean };
+
+const ROUND_SECONDS = 20;
 
 interface Props<T extends P> {
   variant: "nba" | "soccer";
@@ -19,6 +22,8 @@ interface Props<T extends P> {
   benchCount: number;
   deck: Deck<T>;
   mode: DraftMode;
+  /** Optional 20s-per-round countdown that auto-picks if time runs out. */
+  timed?: boolean;
   contextLabel?: string;
   confirmLabel: string;
   onConfirm: (placed: (T | null)[]) => void;
@@ -35,6 +40,7 @@ export function RoundDraft<T extends P>({
   benchCount,
   deck,
   mode,
+  timed = false,
   contextLabel,
   confirmLabel,
   onConfirm,
@@ -43,19 +49,27 @@ export function RoundDraft<T extends P>({
   const accentBg = accent === "nba" ? "bg-nba" : "bg-soccer";
   const accentText = accent === "nba" ? "text-nba" : "text-soccer";
   const hideStats = mode === "iq";
+  const decoysEnabled = mode === "iq"; // ghost cards only in the harder IQ modes
   const allowSkips = mode === "classic" || mode === "iq";
 
-  const [placed, setPlaced] = useState<(T | null)[]>(() => Array(slots.length).fill(null));
+  const [placed, setPlaced] = useState<(Card<T> | null)[]>(() => Array(slots.length).fill(null));
   const [roundIndex, setRoundIndex] = useState(0);
   const [step, setStep] = useState<Step>(mode === "team" ? "select" : "spin");
   const [decade, setDecade] = useState<Decade>(DECADES[0]);
   const [team, setTeam] = useState<string>(deck.teams[0]);
   const [label, setLabel] = useState<string>("");
-  const [candidates, setCandidates] = useState<T[]>([]);
-  const [pending, setPending] = useState<T | null>(null);
-  const [leftover, setLeftover] = useState<T[]>([]);
+  const [candidates, setCandidates] = useState<Card<T>[]>([]);
+  const [pending, setPending] = useState<Card<T> | null>(null);
+  const [leftover, setLeftover] = useState<Card<T>[]>([]);
   const [skips, setSkips] = useState({ team: 1, era: 1 });
   const [shakeSlot, setShakeSlot] = useState<number | null>(null);
+
+  // hidden-stats peek (IQ mode): reveals one card's stats for 2s
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const peekTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // per-round countdown (timer mode)
+  const [remaining, setRemaining] = useState(ROUND_SECONDS);
 
   // reel animation
   const [spinning, setSpinning] = useState(false);
@@ -89,8 +103,48 @@ export function RoundDraft<T extends P>({
       )
       .map(({ i }) => i);
 
-  const computeCandidates = (d: Decade, t: string) =>
-    deck.candidates(d, t, placedIds, openStarterPositions());
+  const computeCandidates = (d: Decade, t: string): Card<T>[] => {
+    const base = deck.candidates(d, t, placedIds, openStarterPositions()) as Card<T>[];
+    // In harder modes, secretly flag one card as a ghost (inflated display, weak in sim).
+    if (!decoysEnabled || base.length < 2) return base;
+    const ghostIdx = Math.floor(rng.current() * base.length);
+    return base.map((c, i) => (i === ghostIdx ? { ...c, ghost: true } : c));
+  };
+
+  // keep latest candidates + pick handler reachable from the timer interval
+  const candidatesRef = useRef<Card<T>[]>([]);
+  const pickRef = useRef<(p: Card<T>) => void>(() => {});
+  useEffect(() => {
+    candidatesRef.current = candidates;
+  }, [candidates]);
+
+  const peek = (id: string) => {
+    if (!hideStats) return;
+    setPeekId(id);
+    clearTimeout(peekTimer.current);
+    peekTimer.current = setTimeout(() => setPeekId(null), 2000);
+  };
+  useEffect(() => () => clearTimeout(peekTimer.current), []);
+
+  // 20s round timer: shrink, then auto-pick a random card when it hits zero
+  useEffect(() => {
+    if (!timed || step !== "reveal" || candidates.length === 0) return;
+    setRemaining(ROUND_SECONDS);
+    const start = Date.now();
+    const iv = setInterval(() => {
+      const left = ROUND_SECONDS - (Date.now() - start) / 1000;
+      if (left <= 0) {
+        clearInterval(iv);
+        setRemaining(0);
+        const pool = candidatesRef.current;
+        if (pool.length) pickRef.current(pool[Math.floor(rng.current() * pool.length)]);
+      } else {
+        setRemaining(left);
+      }
+    }, 100);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timed, step, roundIndex]);
 
   /* ---------- spin ---------- */
   const doSpin = () => {
@@ -161,7 +215,9 @@ export function RoundDraft<T extends P>({
   };
 
   /* ---------- pick + place ---------- */
-  const pickCard = (p: T) => {
+  const pickCard = (p: Card<T>) => {
+    setPeekId(null);
+    clearTimeout(peekTimer.current);
     // unchosen cards go to the bench/leftover pool
     const others = candidates.filter((c) => c.id !== p.id);
     setLeftover((prev) => {
@@ -178,8 +234,9 @@ export function RoundDraft<T extends P>({
       setStep("place");
     }
   };
+  pickRef.current = pickCard;
 
-  const commitPlace = (i: number, p: T) => {
+  const commitPlace = (i: number, p: Card<T>) => {
     setPlaced((prev) => {
       const next = [...prev];
       next[i] = p;
@@ -233,7 +290,7 @@ export function RoundDraft<T extends P>({
   };
 
   const benchPool = leftover.filter((p) => !placedIds.has(p.id));
-  const benchPlace = (p: T) => {
+  const benchPlace = (p: Card<T>) => {
     const slot = benchIdx.find(({ i }) => placed[i] == null);
     if (!slot) return;
     setPlaced((prev) => {
@@ -345,12 +402,22 @@ export function RoundDraft<T extends P>({
 
           {(step === "reveal" || step === "place") && (
             <div>
-              <div className="mb-2 text-sm">
-                <span className={`font-bold ${accentText}`}>{label}</span>{" "}
-                <span className="text-white/40">
-                  {step === "place" ? `· choose a slot for ${pending?.name}` : "· pick one player"}
-                </span>
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <div>
+                  <span className={`font-bold ${accentText}`}>{label}</span>{" "}
+                  <span className="text-white/40">
+                    {step === "place" ? `· choose a slot for ${pending?.name}` : "· pick one player"}
+                  </span>
+                </div>
+                {hideStats && step === "reveal" && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-white/30">
+                    👁 tap to peek
+                  </span>
+                )}
               </div>
+
+              {timed && step === "reveal" && <TimerBar remaining={remaining} />}
+
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                 {candidates.map((p, idx) => (
                   <CandidateCard
@@ -359,10 +426,17 @@ export function RoundDraft<T extends P>({
                     bars={deck.statBars(p)}
                     roles={deck.roles(p)}
                     accent={accent}
-                    hideStats={hideStats}
+                    revealed={!hideStats || peekId === p.id}
                     dim={step === "place" && pending?.id !== p.id}
                     chosen={pending?.id === p.id}
-                    onClick={() => step === "reveal" && pickCard(p)}
+                    onClick={() => {
+                      if (step !== "reveal") return;
+                      if (hideStats) peek(p.id);
+                      else pickCard(p);
+                    }}
+                    onHover={hideStats && step === "reveal" ? () => peek(p.id) : undefined}
+                    showDraft={step === "reveal" && hideStats}
+                    onDraft={() => pickCard(p)}
                     delay={idx * 0.07}
                   />
                 ))}
@@ -388,7 +462,7 @@ export function RoundDraft<T extends P>({
                     bars={deck.statBars(p)}
                     roles={deck.roles(p)}
                     accent={accent}
-                    hideStats={hideStats}
+                    revealed={!hideStats}
                     dim={!benchFilled ? false : true}
                     chosen={false}
                     onClick={() => !benchFilled && benchPlace(p)}
@@ -493,42 +567,80 @@ function Reels({
   );
 }
 
+/* ----------------------------- timer bar ----------------------------- */
+function TimerBar({ remaining }: { remaining: number }) {
+  const urgent = remaining <= 5;
+  const pct = Math.max(0, Math.min(100, (remaining / ROUND_SECONDS) * 100));
+  return (
+    <div className="mb-2">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide">
+        <span className="text-white/30">⏱ Round timer</span>
+        <span className={urgent ? "text-red-400" : "text-white/40"}>{Math.ceil(remaining)}s</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full transition-[width] duration-100 ease-linear ${
+            urgent ? "bg-red-500 timer-pulse" : "bg-gradient-to-r from-amber-400 to-amber-200"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------------- candidate card ----------------------------- */
 function CandidateCard({
   p,
   bars,
   roles,
   accent,
-  hideStats,
+  revealed,
   dim,
   chosen,
   onClick,
+  onHover,
   delay,
   compact,
+  showDraft,
+  onDraft,
 }: {
-  p: P;
+  p: P & { ghost?: boolean };
   bars: { label: string; value: number }[];
   roles: string[];
   accent: "nba" | "soccer";
-  hideStats: boolean;
+  revealed: boolean;
   dim: boolean;
   chosen: boolean;
   onClick: () => void;
+  onHover?: () => void;
   delay: number;
   compact?: boolean;
+  showDraft?: boolean;
+  onDraft?: () => void;
 }) {
   const barColor = accent === "nba" ? "from-nba to-nba-gold" : "from-soccer to-soccer-gold";
   const ring = accent === "nba" ? "ring-nba" : "ring-soccer";
+  const ghost = !!p.ghost;
+  // ghosts flash inflated stats to deceive — real value is used in the sim
+  const dispOvr = ghost ? Math.min(99, p.overall + 7) : p.overall;
+  const dispBars = ghost
+    ? bars.map((b) => ({ ...b, value: Math.min(100, Math.round(b.value * 1.18)) }))
+    : bars;
   return (
-    <motion.button
+    <motion.div
+      role="button"
+      tabIndex={0}
       initial={{ rotateY: 90, opacity: 0 }}
       animate={{ rotateY: 0, opacity: dim ? 0.45 : 1 }}
       transition={{ delay, type: "spring", stiffness: 120, damping: 14 }}
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
-      className={`rounded-xl border p-2.5 text-left transition ${
+      onPointerEnter={onHover}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick()}
+      className={`relative cursor-pointer select-none overflow-hidden rounded-xl border p-2.5 text-left transition ${
         chosen ? `border-amber-400 ring-2 ${ring}/40 bg-white/5` : "border-white/10 bg-panel hover:border-white/30"
-      }`}
+      } ${ghost ? "ghost-shimmer" : ""}`}
     >
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-white/15 to-white/5 text-[10px] font-black text-white/80">
@@ -536,9 +648,9 @@ function CandidateCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold leading-tight">{p.name}</div>
-          {!hideStats && (
+          {revealed && (
             <div className={`text-[10px] font-bold ${accent === "nba" ? "text-nba" : "text-soccer"}`}>
-              {p.overall} OVR
+              {dispOvr} OVR
             </div>
           )}
         </div>
@@ -550,9 +662,9 @@ function CandidateCard({
           </span>
         ))}
       </div>
-      {!hideStats && !compact && (
+      {revealed && !compact && (
         <div className="mt-2 space-y-1">
-          {bars.map((b) => (
+          {dispBars.map((b) => (
             <div key={b.label} className="flex items-center gap-1.5">
               <span className="w-7 text-[8px] font-semibold text-white/40">{b.label}</span>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
@@ -565,7 +677,20 @@ function CandidateCard({
           ))}
         </div>
       )}
-    </motion.button>
+      {showDraft && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDraft?.();
+          }}
+          className={`mt-2 w-full rounded-lg py-1 text-[11px] font-bold text-black ${
+            accent === "nba" ? "bg-nba hover:bg-nba-gold" : "bg-soccer hover:bg-soccer-gold"
+          }`}
+        >
+          Draft
+        </button>
+      )}
+    </motion.div>
   );
 }
 

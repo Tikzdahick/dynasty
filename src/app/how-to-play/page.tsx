@@ -33,6 +33,14 @@ export default function HowToPlay() {
         </p>
       </Section>
 
+      <Section emoji="🔥" title="Harder mechanics" accent="text-amber-300">
+        <ul className="list-disc space-y-1.5 pl-5 text-sm text-white/70">
+          <li><b>⏱ Timer Mode</b> (optional toggle): every round has a 20-second countdown. Let it hit zero and a random card is auto-drafted — the bar turns red and pulses in the last 5 seconds.</li>
+          <li><b>🧠 Hidden Stats</b> (Hoop IQ / Soccer IQ): stat bars are hidden. Tap or hover a card to <b>peek for 2 seconds</b>, then it hides again. Draft from memory.</li>
+          <li><b>🫥 Decoy cards</b>: in IQ modes, one card per round may be a <b>ghost</b> — flashy inflated stats and a subtle shimmer, but it plays far worse once you simulate. Spot it or pay the price.</li>
+        </ul>
+      </Section>
+
       <Section emoji="🏀" title="NBA Mode" accent="text-nba">
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-white/70">
           <li>Draft <b>5 starters</b> (PG, SG, SF, PF, C) + <b>3 bench</b>.</li>

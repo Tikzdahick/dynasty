@@ -26,10 +26,26 @@ const NBA_SLOTS: SlotDef[] = [
 ];
 
 type Phase = "draft" | "summary" | "sim" | "done";
+type GhostNba = NbaPlayer & { ghost?: boolean };
+
+// Decoy ("ghost") players flash inflated stats during the draft but
+// perform significantly worse once the season is simulated.
+function weakenGhost(p: NbaPlayer | null): NbaPlayer {
+  const g = p as GhostNba;
+  if (!g?.ghost) return p as NbaPlayer;
+  return {
+    ...g,
+    overall: Math.round(g.overall * 0.78),
+    ppg: +(g.ppg * 0.78).toFixed(1),
+    rpg: +(g.rpg * 0.78).toFixed(1),
+    apg: +(g.apg * 0.78).toFixed(1),
+  };
+}
 
 export default function NbaDraftPage() {
   const router = useRouter();
   const [mode, setMode] = useState<DraftMode | null>(null);
+  const [timed, setTimed] = useState(false);
   const [phase, setPhase] = useState<Phase>("draft");
   const [placed, setPlaced] = useState<(NbaPlayer | null)[]>([]);
   const [roster, setRoster] = useState<NbaPlayer[]>([]);
@@ -38,11 +54,12 @@ export default function NbaDraftPage() {
 
   useEffect(() => {
     setMode((sessionStorage.getItem("dynasty.nba.mode") as DraftMode) || "classic");
+    setTimed(sessionStorage.getItem("dynasty.nba.timer") === "1");
   }, []);
 
   const rating = (() => {
-    const starters = placed.slice(0, 5).filter(Boolean) as NbaPlayer[];
-    const bench = placed.slice(5, 8).filter(Boolean) as NbaPlayer[];
+    const starters = placed.slice(0, 5).filter(Boolean).map(weakenGhost);
+    const bench = placed.slice(5, 8).filter(Boolean).map(weakenGhost);
     return teamRating(starters, bench);
   })();
 
@@ -72,7 +89,8 @@ export default function NbaDraftPage() {
           benchCount={3}
           deck={nbaDeck}
           mode={mode}
-          contextLabel={`NBA · ${labelFor(mode)}`}
+          timed={timed}
+          contextLabel={`NBA · ${labelFor(mode)}${timed ? " · ⏱ Timed" : ""}`}
           confirmLabel="Confirm roster →"
           onConfirm={onConfirm}
           onExit={() => router.push("/nba")}
@@ -293,10 +311,24 @@ function SeasonResult({
       <div className="card mt-4 p-4 text-left">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Your roster</div>
         <div className="flex flex-wrap gap-1.5">
-          {roster.map((p) => (
-            <span key={p.id} className="rounded-lg bg-white/5 px-2 py-1 text-xs">{p.name}</span>
-          ))}
+          {roster.map((p) => {
+            const ghost = (p as GhostNba).ghost;
+            return (
+              <span
+                key={p.id}
+                className={`rounded-lg px-2 py-1 text-xs ${ghost ? "bg-red-500/15 text-red-300 ring-1 ring-red-500/30" : "bg-white/5"}`}
+              >
+                {ghost && "🫥 "}
+                {p.name}
+              </span>
+            );
+          })}
         </div>
+        {roster.some((p) => (p as GhostNba).ghost) && (
+          <p className="mt-2 text-[11px] italic text-red-300/70">
+            🫥 Ghost busted — a decoy you drafted played well below its flashy card.
+          </p>
+        )}
       </div>
 
       <div className="card mt-4 p-4">
