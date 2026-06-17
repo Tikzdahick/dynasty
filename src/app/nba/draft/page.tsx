@@ -11,6 +11,8 @@ import { simulateSeason, teamRating } from "@/lib/nba/sim";
 import { NbaPlayer, NbaSeasonResult } from "@/types";
 import { useAuth } from "@/lib/auth";
 import { saveNbaResult } from "@/lib/store/leaderboard";
+import { computeChemistry, Chemistry } from "@/lib/chemistry";
+import { PreSimSummary } from "@/components/PreSimSummary";
 
 const NBA_SLOTS: SlotDef[] = [
   { id: "pg", position: "PG", label: "PG", x: 58, y: 26 },
@@ -23,24 +25,37 @@ const NBA_SLOTS: SlotDef[] = [
   { id: "b3", position: "ANY", label: "Bench", bench: true },
 ];
 
-type Phase = "draft" | "sim" | "done";
+type Phase = "draft" | "summary" | "sim" | "done";
 
 export default function NbaDraftPage() {
   const router = useRouter();
   const [mode, setMode] = useState<DraftMode | null>(null);
   const [phase, setPhase] = useState<Phase>("draft");
+  const [placed, setPlaced] = useState<(NbaPlayer | null)[]>([]);
   const [roster, setRoster] = useState<NbaPlayer[]>([]);
+  const [chemistry, setChemistry] = useState<Chemistry | null>(null);
   const [season, setSeason] = useState<NbaSeasonResult | null>(null);
 
   useEffect(() => {
     setMode((sessionStorage.getItem("dynasty.nba.mode") as DraftMode) || "classic");
   }, []);
 
-  const onConfirm = (placed: (NbaPlayer | null)[]) => {
+  const rating = (() => {
     const starters = placed.slice(0, 5).filter(Boolean) as NbaPlayer[];
     const bench = placed.slice(5, 8).filter(Boolean) as NbaPlayer[];
-    setRoster([...starters, ...bench]);
-    setSeason(simulateSeason(teamRating(starters, bench)));
+    return teamRating(starters, bench);
+  })();
+
+  const onConfirm = (next: (NbaPlayer | null)[]) => {
+    const all = next.filter(Boolean) as NbaPlayer[];
+    setPlaced(next);
+    setRoster(all);
+    setChemistry(computeChemistry("nba", all));
+    setPhase("summary");
+  };
+
+  const simulate = () => {
+    setSeason(simulateSeason(rating, chemistry?.pct ?? 0));
     setPhase("sim");
   };
 
@@ -58,9 +73,22 @@ export default function NbaDraftPage() {
           deck={nbaDeck}
           mode={mode}
           contextLabel={`NBA · ${labelFor(mode)}`}
-          confirmLabel="Confirm roster → Tip off"
+          confirmLabel="Confirm roster →"
           onConfirm={onConfirm}
           onExit={() => router.push("/nba")}
+        />
+      )}
+      {phase === "summary" && chemistry && (
+        <PreSimSummary<NbaPlayer>
+          variant="nba"
+          accent="nba"
+          slots={NBA_SLOTS}
+          placed={placed}
+          chemistry={chemistry}
+          rating={rating}
+          subtitle={`NBA · ${labelFor(mode)}`}
+          onSimulate={simulate}
+          onBack={() => setPhase("draft")}
         />
       )}
       {phase === "sim" && season && (
@@ -71,6 +99,7 @@ export default function NbaDraftPage() {
           season={season}
           roster={roster}
           mode={mode}
+          chemistry={chemistry}
           onReset={() => router.push("/nba")}
         />
       )}
@@ -92,7 +121,10 @@ function SeasonSim({ season, onDone }: { season: NbaSeasonResult; onDone: () => 
       const t = setTimeout(onDone, 700);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setShown((s) => s + 1), shown < 4 ? 260 : 70);
+    // linger dramatically on upset losses
+    const justRevealed = season.games[shown - 1];
+    const delay = justRevealed?.upset ? 900 : shown < 4 ? 260 : 70;
+    const t = setTimeout(() => setShown((s) => s + 1), delay);
     return () => clearTimeout(t);
   }, [shown, season.games.length, onDone]);
 
@@ -121,12 +153,23 @@ function SeasonSim({ season, onDone }: { season: NbaSeasonResult; onDone: () => 
             key={g.game}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ${g.win ? "bg-nba/10" : "bg-red-500/10"}`}
+            className={`rounded-lg px-3 py-1.5 text-sm ${
+              g.upset ? "bg-red-500/20 ring-1 ring-red-500/40" : g.win ? "bg-nba/10" : "bg-red-500/10"
+            }`}
           >
-            <span className="text-white/40">#{g.game}</span>
-            <span className="flex-1 px-3 text-white/70">vs {g.opponent}</span>
-            <span className="font-semibold tabular-nums">{g.teamScore}–{g.oppScore}</span>
-            <span className={`ml-3 w-5 text-center font-bold ${g.win ? "text-nba" : "text-red-400"}`}>{g.win ? "W" : "L"}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-white/40">#{g.game}</span>
+              <span className="flex-1 px-3 text-white/70">
+                vs {g.opponent} {g.upset && <span className="text-red-400">· UPSET</span>}
+              </span>
+              <span className={`font-semibold tabular-nums ${g.upset ? "text-white/50" : ""}`}>
+                {g.teamScore}–{g.oppScore}
+              </span>
+              <span className={`ml-3 w-5 text-center font-bold ${g.win ? "text-nba" : "text-red-400"}`}>
+                {g.win ? "W" : "L"}
+              </span>
+            </div>
+            {g.story && <div className="mt-0.5 pl-7 text-[11px] italic text-red-300/80">{g.story}</div>}
           </motion.div>
         ))}
       </div>
@@ -162,11 +205,13 @@ function SeasonResult({
   season,
   roster,
   mode,
+  chemistry,
   onReset,
 }: {
   season: NbaSeasonResult;
   roster: NbaPlayer[];
   mode: DraftMode;
+  chemistry: Chemistry | null;
   onReset: () => void;
 }) {
   const { user, displayName, guestName, setGuestName } = useAuth();
@@ -175,6 +220,7 @@ function SeasonResult({
   const undefeated = season.losses === 0;
   const grade = gradeFor(season.wins);
   const { strengths, weaknesses } = analyze(roster);
+  const upsets = season.games.filter((g) => g.upset);
 
   const save = async () => {
     if (!name.trim()) return;
@@ -186,6 +232,7 @@ function SeasonResult({
       losses: season.losses,
       players: roster.map((p) => p.name),
       rating: season.teamRating,
+      chemistry: chemistry?.label,
     });
     setSaved(res.saved);
   };
@@ -210,7 +257,13 @@ function SeasonResult({
         <p className="mt-1 text-sm text-white/40">Team rating {season.teamRating}</p>
       </motion.div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 text-left text-sm">
+      <div className="mt-4 grid grid-cols-3 gap-3 text-left text-sm">
+        <div className="card p-3">
+          <div className="text-xs uppercase text-white/40">Chemistry</div>
+          <div className={`font-bold ${chemistry?.label === "Elite" ? "text-amber-300" : chemistry?.label === "Good" ? "text-emerald-300" : "text-white/50"}`}>
+            {chemistry?.label ?? "—"}
+          </div>
+        </div>
         <div className="card p-3">
           <div className="text-xs uppercase text-white/40">Strength</div>
           <div className="font-bold text-nba">{strengths[0] ?? "—"}</div>
@@ -220,6 +273,22 @@ function SeasonResult({
           <div className="font-bold text-red-400">{weaknesses[0] ?? "—"}</div>
         </div>
       </div>
+
+      {upsets.length > 0 && (
+        <div className="card mt-4 p-4 text-left">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-300/80">
+            Bad nights ({upsets.length})
+          </div>
+          <div className="space-y-1.5">
+            {upsets.map((g) => (
+              <div key={g.game} className="text-xs text-white/60">
+                <span className="font-semibold text-white/80">L {g.teamScore}–{g.oppScore}</span>{" "}
+                vs {g.opponent} — <span className="italic text-red-300/80">{g.story}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card mt-4 p-4 text-left">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Your roster</div>

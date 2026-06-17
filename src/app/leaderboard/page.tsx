@@ -99,7 +99,10 @@ export default function LeaderboardPage() {
             {nba.map((e, i) => (
               <Row key={e.id} rank={i + 1} accent="nba">
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold">{e.username}</div>
+                  <div className="flex items-center gap-1.5 font-bold">
+                    {e.username}
+                    {e.chemistry && <ChemChip label={e.chemistry} />}
+                  </div>
                   <div className="truncate text-xs text-white/40">
                     {e.players.join(" · ")}
                   </div>
@@ -121,9 +124,10 @@ export default function LeaderboardPage() {
           {soccer.map((e, i) => (
             <Row key={e.id} rank={i + 1} accent="soccer">
               <div className="min-w-0 flex-1">
-                <div className="font-bold">
+                <div className="flex items-center gap-1.5 font-bold">
                   {e.username}
-                  {e.result === "Champion" && <span className="ml-1">🏆</span>}
+                  {e.result === "Champion" && <span>🏆</span>}
+                  {e.chemistry && <ChemChip label={e.chemistry} />}
                 </div>
                 <div className="truncate text-xs text-white/40">
                   {e.formation} · {e.players.slice(0, 6).join(" · ")}…
@@ -138,6 +142,20 @@ export default function LeaderboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ChemChip({ label }: { label: string }) {
+  const style =
+    label === "Elite"
+      ? "bg-amber-400/20 text-amber-300"
+      : label === "Good"
+      ? "bg-emerald-400/15 text-emerald-300"
+      : "bg-white/10 text-white/50";
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${style}`}>
+      {label}
+    </span>
   );
 }
 

@@ -16,6 +16,8 @@ import {
 } from "@/types";
 import { useAuth } from "@/lib/auth";
 import { saveSoccerResult } from "@/lib/store/leaderboard";
+import { computeChemistry, Chemistry } from "@/lib/chemistry";
+import { PreSimSummary } from "@/components/PreSimSummary";
 
 function soccerSlots(formationName: FormationName): SlotDef[] {
   const slots = FORMATIONS[formationName].slots.map((s, i) => ({
@@ -34,26 +36,39 @@ function soccerSlots(formationName: FormationName): SlotDef[] {
   return [...slots, ...subs];
 }
 
-type Phase = "formation" | "draft" | "sim" | "done";
+type Phase = "formation" | "draft" | "summary" | "sim" | "done";
 
 export default function SoccerDraftPage() {
   const router = useRouter();
   const [mode, setMode] = useState<DraftMode | null>(null);
   const [phase, setPhase] = useState<Phase>("formation");
   const [formationName, setFormationName] = useState<FormationName>("4-3-3");
+  const [placed, setPlaced] = useState<(SoccerPlayer | null)[]>([]);
   const [xi, setXi] = useState<SoccerPlayer[]>([]);
+  const [chemistry, setChemistry] = useState<Chemistry | null>(null);
   const [result, setResult] = useState<SoccerTournamentResult | null>(null);
 
   useEffect(() => {
     setMode((sessionStorage.getItem("dynasty.soccer.mode") as DraftMode) || "classic");
   }, []);
 
-  const onConfirm = (placed: (SoccerPlayer | null)[]) => {
-    const eleven = placed.slice(0, 11).filter(Boolean) as SoccerPlayer[];
+  const onConfirm = (next: (SoccerPlayer | null)[]) => {
+    const eleven = next.slice(0, 11).filter(Boolean) as SoccerPlayer[];
+    const all = next.filter(Boolean) as SoccerPlayer[];
+    setPlaced(next);
     setXi(eleven);
-    setResult(simulateTournament(eleven));
+    setChemistry(computeChemistry("soccer", all));
+    setPhase("summary");
+  };
+
+  const simulate = () => {
+    setResult(simulateTournament(xi, chemistry?.pct ?? 0));
     setPhase("sim");
   };
+
+  const teamRating = xi.length
+    ? Math.round((xi.reduce((a, p) => a + p.overall, 0) / xi.length) * 10) / 10
+    : 0;
 
   if (!mode) return null;
 
@@ -95,9 +110,25 @@ export default function SoccerDraftPage() {
               deck={soccerDeck}
               mode={mode}
               contextLabel={`Soccer · ${formationName} · ${labelFor(mode)}`}
-              confirmLabel="Confirm XI → Kick off"
+              confirmLabel="Confirm XI →"
               onConfirm={onConfirm}
               onExit={() => router.push("/soccer")}
+            />
+          </motion.div>
+        )}
+
+        {phase === "summary" && chemistry && (
+          <motion.div key="sum" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <PreSimSummary<SoccerPlayer>
+              variant="soccer"
+              accent="soccer"
+              slots={soccerSlots(formationName)}
+              placed={placed}
+              chemistry={chemistry}
+              rating={teamRating}
+              subtitle={`${formationName} · ${labelFor(mode)}`}
+              onSimulate={simulate}
+              onBack={() => setPhase("draft")}
             />
           </motion.div>
         )}
@@ -110,7 +141,7 @@ export default function SoccerDraftPage() {
 
         {phase === "done" && result && (
           <motion.div key="r" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <TournamentResult result={result} xi={xi} formationName={formationName} onReset={() => router.push("/soccer")} />
+            <TournamentResult result={result} xi={xi} formationName={formationName} chemistry={chemistry} onReset={() => router.push("/soccer")} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -139,9 +170,9 @@ function TournamentSim({ result, onDone }: { result: SoccerTournamentResult; onD
       <p className="text-center text-sm uppercase tracking-[0.3em] text-white/40">Tournament</p>
       <div className="mt-4 space-y-2">
         {result.matches.slice(0, shown).map((m, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`card p-4 ${m.win ? "border-soccer/40" : "border-red-500/40"}`}>
+          <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`card p-4 ${m.upset ? "border-red-500/60 ring-1 ring-red-500/30" : m.win ? "border-soccer/40" : "border-red-500/40"}`}>
             <div className="flex items-center justify-between text-xs text-white/40">
-              <span>{m.round}</span>
+              <span>{m.round}{m.upset && <span className="ml-1 text-red-400">· UPSET</span>}</span>
               <span className={`font-bold ${m.win ? "text-soccer" : m.draw ? "text-white/60" : "text-red-400"}`}>{m.win ? "WIN" : m.draw ? "DRAW" : "OUT"}</span>
             </div>
             <div className="mt-2 flex items-center justify-center gap-4 text-2xl font-black tabular-nums">
@@ -160,6 +191,9 @@ function TournamentSim({ result, onDone }: { result: SoccerTournamentResult; onD
                 ))}
               </div>
             )}
+            {m.story && (
+              <div className="mt-2 text-center text-[11px] italic text-red-300/80">{m.story}</div>
+            )}
           </motion.div>
         ))}
       </div>
@@ -172,16 +206,19 @@ function TournamentResult({
   result,
   xi,
   formationName,
+  chemistry,
   onReset,
 }: {
   result: SoccerTournamentResult;
   xi: SoccerPlayer[];
   formationName: FormationName;
+  chemistry: Chemistry | null;
   onReset: () => void;
 }) {
   const { user, displayName, guestName, setGuestName } = useAuth();
   const [name, setName] = useState(displayName !== "Guest" ? displayName : guestName);
   const [saved, setSaved] = useState<"idle" | "saving" | "cloud" | "local">("idle");
+  const upset = result.matches.find((m) => m.upset);
 
   const save = async () => {
     if (!name.trim()) return;
@@ -193,6 +230,7 @@ function TournamentResult({
       players: xi.map((p) => p.name),
       formation: formationName,
       rating: result.teamRating,
+      chemistry: chemistry?.label,
     });
     setSaved(res.saved);
   };
@@ -206,6 +244,17 @@ function TournamentResult({
           {result.champion ? <span className="text-soccer-gold">WORLD CHAMPIONS</span> : `Eliminated: ${result.reachedRound}`}
         </h2>
         <p className="mt-1 text-sm text-white/40">{formationName} · Team rating {result.teamRating}</p>
+        {chemistry && (
+          <p className="mt-1 text-sm">
+            Chemistry:{" "}
+            <span className={chemistry.label === "Elite" ? "text-amber-300" : chemistry.label === "Good" ? "text-emerald-300" : "text-white/50"}>
+              {chemistry.label}
+            </span>
+          </p>
+        )}
+        {!result.champion && upset && (
+          <p className="mt-2 text-sm italic text-red-300/80">😱 {upset.story}</p>
+        )}
       </motion.div>
 
       <div className="card mt-6 p-4 text-left">

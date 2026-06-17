@@ -78,6 +78,7 @@ const TEAMS: RawTeam[] = [
     { name: "Michael Cooper", position: "SG", ppg: 8.9, rpg: 3.2, apg: 4.2, overall: 80 },
     { name: "Bob McAdoo", position: "C", ppg: 15.0, rpg: 6.2, apg: 1.9, overall: 85 },
     { name: "Kurt Rambis", position: "PF", ppg: 5.4, rpg: 5.9, apg: 1.3, overall: 74 },
+    { name: "Norm Nixon", position: "PG", ppg: 15.5, rpg: 2.5, apg: 8.0, overall: 83 },
   ]},
   { decade: "1980s", team: "Celtics", label: "1980s Boston Celtics", players: [
     { name: "Larry Bird", position: "SF", ppg: 24.3, rpg: 10.0, apg: 6.3, overall: 96 },
@@ -95,6 +96,8 @@ const TEAMS: RawTeam[] = [
     { name: "Mark Aguirre", position: "SF", ppg: 15.9, rpg: 4.6, apg: 3.1, overall: 83 },
     { name: "John Salley", position: "PF", ppg: 7.0, rpg: 4.9, apg: 1.2, overall: 76 },
     { name: "Vinnie Johnson", position: "SG", ppg: 12.0, rpg: 2.9, apg: 3.3, overall: 79 },
+    { name: "Rick Mahorn", position: "C", ppg: 7.0, rpg: 6.5, apg: 1.0, overall: 76 },
+    { name: "Adrian Dantley", position: "SF", ppg: 18.0, rpg: 4.0, apg: 2.6, overall: 83 },
   ]},
   { decade: "1990s", team: "Bulls", label: "1990s Chicago Bulls", players: [
     { name: "Michael Jordan", position: "SG", ppg: 30.1, rpg: 6.2, apg: 5.3, overall: 99 },
@@ -221,6 +224,38 @@ const TEAMS: RawTeam[] = [
     { name: "Khris Middleton", position: "SF", ppg: 15.0, rpg: 5.0, apg: 5.0, overall: 84 },
     { name: "Brook Lopez", position: "C", ppg: 12.0, rpg: 5.0, apg: 1.5, overall: 81 },
     { name: "Bobby Portis", position: "PF", ppg: 13.0, rpg: 9.0, apg: 1.4, overall: 80 },
+  ]},
+  { decade: "1990s", team: "Magic", label: "1990s Orlando Magic", players: [
+    { name: "Shaquille O'Neal", position: "C", ppg: 27.2, rpg: 12.5, apg: 2.9, overall: 95 },
+    { name: "Penny Hardaway", position: "PG", ppg: 19.0, rpg: 4.5, apg: 6.3, overall: 88 },
+    { name: "Horace Grant", position: "PF", ppg: 12.0, rpg: 8.5, apg: 2.5, overall: 81 },
+    { name: "Nick Anderson", position: "SG", ppg: 15.0, rpg: 5.0, apg: 3.0, overall: 80 },
+    { name: "Dennis Scott", position: "SF", ppg: 13.5, rpg: 3.0, apg: 2.0, overall: 78 },
+    { name: "Brian Shaw", position: "PG", ppg: 7.5, rpg: 3.0, apg: 4.5, overall: 75 },
+  ]},
+  { decade: "2000s", team: "Mavericks", label: "2000s Dallas Mavericks", players: [
+    { name: "Dirk Nowitzki", position: "PF", ppg: 24.6, rpg: 9.0, apg: 2.8, overall: 93 },
+    { name: "Steve Nash", position: "PG", ppg: 15.0, rpg: 3.0, apg: 8.8, overall: 88 },
+    { name: "Michael Finley", position: "SG", ppg: 19.0, rpg: 5.5, apg: 3.4, overall: 83 },
+    { name: "Antawn Jamison", position: "PF", ppg: 18.0, rpg: 7.5, apg: 1.5, overall: 82 },
+    { name: "Nick Van Exel", position: "PG", ppg: 13.5, rpg: 2.6, apg: 6.0, overall: 79 },
+    { name: "Shawn Bradley", position: "C", ppg: 8.0, rpg: 6.5, apg: 0.8, overall: 74 },
+  ]},
+  { decade: "2010s", team: "Cavaliers", label: "2010s Cleveland Cavaliers", players: [
+    { name: "LeBron James", position: "SF", ppg: 26.0, rpg: 7.8, apg: 7.4, overall: 98 },
+    { name: "Kyrie Irving", position: "PG", ppg: 22.0, rpg: 3.3, apg: 5.8, overall: 89 },
+    { name: "Kevin Love", position: "PF", ppg: 17.0, rpg: 10.0, apg: 2.5, overall: 85 },
+    { name: "J.R. Smith", position: "SG", ppg: 12.0, rpg: 3.0, apg: 1.8, overall: 78 },
+    { name: "Tristan Thompson", position: "C", ppg: 9.0, rpg: 9.0, apg: 0.7, overall: 78 },
+    { name: "Iman Shumpert", position: "SG", ppg: 7.0, rpg: 3.0, apg: 2.0, overall: 74 },
+  ]},
+  { decade: "2020s", team: "Suns", label: "2020s Phoenix Suns", players: [
+    { name: "Kevin Durant", position: "SF", ppg: 27.0, rpg: 6.7, apg: 5.0, overall: 95 },
+    { name: "Devin Booker", position: "SG", ppg: 27.1, rpg: 4.5, apg: 6.9, overall: 90 },
+    { name: "Bradley Beal", position: "SG", ppg: 18.0, rpg: 4.0, apg: 5.0, overall: 84 },
+    { name: "Jusuf Nurkic", position: "C", ppg: 11.0, rpg: 11.0, apg: 4.0, overall: 80 },
+    { name: "Eric Gordon", position: "SG", ppg: 11.0, rpg: 2.0, apg: 2.8, overall: 77 },
+    { name: "Grayson Allen", position: "SG", ppg: 13.5, rpg: 3.9, apg: 3.0, overall: 78 },
   ]},
 ];
 

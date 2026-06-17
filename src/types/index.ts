@@ -19,6 +19,8 @@ export interface NbaGameResult {
   teamScore: number;
   oppScore: number;
   win: boolean;
+  upset?: boolean;
+  story?: string;
 }
 
 export interface NbaSeasonResult {
@@ -74,6 +76,8 @@ export interface SoccerMatchResult {
   win: boolean;
   draw: boolean;
   penalties?: { team: number; opp: number };
+  upset?: boolean;
+  story?: string;
 }
 
 export interface SoccerTournamentResult {
@@ -130,6 +134,7 @@ export interface NbaLeaderboardEntry {
   losses: number;
   players: string[]; // 8 names
   rating: number;
+  chemistry?: string;
   created_at: string;
 }
 
@@ -140,5 +145,6 @@ export interface SoccerLeaderboardEntry {
   players: string[]; // XI names
   formation: string;
   rating: number;
+  chemistry?: string;
   created_at: string;
 }

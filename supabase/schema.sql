@@ -10,6 +10,7 @@ create table if not exists public.nba_results (
   losses int not null,
   players text[] not null,
   rating numeric not null,
+  chemistry text,
   created_at timestamptz not null default now()
 );
 
@@ -25,6 +26,7 @@ create table if not exists public.soccer_results (
   players text[] not null,
   formation text not null,
   rating numeric not null,
+  chemistry text,
   created_at timestamptz not null default now()
 );
 

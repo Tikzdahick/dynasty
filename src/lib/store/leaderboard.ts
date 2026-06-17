@@ -47,6 +47,7 @@ export async function saveNbaResult(
         losses: entry.losses,
         players: entry.players,
         rating: entry.rating,
+        chemistry: entry.chemistry ?? null,
       });
       if (!error) return { saved: "cloud" };
     }
@@ -73,6 +74,7 @@ export async function getNbaLeaderboard(
         losses: d.losses,
         players: d.players,
         rating: d.rating,
+        chemistry: d.chemistry ?? undefined,
         created_at: d.created_at,
       }));
     }
@@ -118,6 +120,7 @@ export async function saveSoccerResult(
         players: entry.players,
         formation: entry.formation,
         rating: entry.rating,
+        chemistry: entry.chemistry ?? null,
       });
       if (!error) return { saved: "cloud" };
     }
@@ -144,6 +147,7 @@ export async function getSoccerLeaderboard(
         players: d.players,
         formation: d.formation,
         rating: d.rating,
+        chemistry: d.chemistry ?? undefined,
         created_at: d.created_at,
       }));
     }

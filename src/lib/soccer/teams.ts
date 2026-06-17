@@ -214,6 +214,16 @@ const TEAMS: RawTeam[] = [
     { name: "Aymeric Laporte", country: "Spain", position: "DEF", pace: 74, shooting: 58, passing: 80, defending: 87, overall: 85 },
     { name: "Unai Simon", country: "Spain", position: "GK", pace: 54, shooting: 22, passing: 66, defending: 88, overall: 84 },
   ]},
+  { decade: "2000s", team: "France", label: "2000 France (Euro winners)", players: [
+    { name: "Zinedine Zidane", country: "France", position: "MID", pace: 78, shooting: 86, passing: 95, defending: 65, overall: 95 },
+    { name: "Thierry Henry", country: "France", position: "FWD", pace: 94, shooting: 88, passing: 82, defending: 35, overall: 90 },
+    { name: "Patrick Vieira", country: "France", position: "MID", pace: 80, shooting: 76, passing: 84, defending: 85, overall: 88 },
+    { name: "Marcel Desailly", country: "France", position: "DEF", pace: 80, shooting: 55, passing: 75, defending: 90, overall: 88 },
+    { name: "Lilian Thuram", country: "France", position: "DEF", pace: 84, shooting: 58, passing: 76, defending: 89, overall: 87 },
+    { name: "Robert Pires", country: "France", position: "MID", pace: 84, shooting: 84, passing: 88, defending: 50, overall: 86 },
+    { name: "Bixente Lizarazu", country: "France", position: "DEF", pace: 84, shooting: 60, passing: 78, defending: 84, overall: 83 },
+    { name: "Fabien Barthez", country: "France", position: "GK", pace: 55, shooting: 20, passing: 60, defending: 88, overall: 85 },
+  ]},
 ];
 
 function build(raw: Raw, decade: Decade): SoccerPlayer {
@@ -258,3 +268,6 @@ export const SOCCER_TEAMS = [
   "Australia", "South Korea", "Poland", "Czech Republic", "Sweden", "Denmark",
   "Switzerland", "Hungary", "West Germany", "Greece",
 ];
+
+// Iconic club sides (not nations) — used for the club-chemistry bonus.
+export const SOCCER_CLUBS = new Set(["AC Milan", "Barcelona", "Real Madrid"]);

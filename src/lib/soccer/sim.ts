@@ -89,25 +89,32 @@ function pickScorers(
   return scorers.sort((a, b) => a.minute - b.minute);
 }
 
+const SOCCER_UPSET_STORIES = [
+  "Conceded a stoppage-time sucker punch.",
+  "Hit the woodwork three times and never recovered.",
+  "A keeper's howler proved decisive.",
+  "Parked-bus tactics frustrated your stars all night.",
+  "Lost the midfield battle and paid for it.",
+  "A moment of magic from nowhere undid you.",
+];
+
 function playMatch(
   round: string,
   team: TeamStrength,
   starters: SoccerPlayer[],
   oppStrength: number,
-  knockout: boolean
+  knockout: boolean,
+  chem = 0
 ): SoccerMatchResult {
   const opponent = NATIONS[Math.floor(Math.random() * NATIONS.length)];
 
-  // expected goals from attack vs opp defense + midfield tilt
+  // chemistry sharpens the attack and tightens the back line
+  const attack = team.attack + chem * 0.18;
+  const defense = team.defense + chem * 0.12;
+
   const midEdge = (team.midfield - oppStrength) * 0.012;
-  const teamXg = Math.max(
-    0.25,
-    1.25 + (team.attack - oppStrength) * 0.06 + midEdge + gauss(0, 0.25)
-  );
-  const oppXg = Math.max(
-    0.2,
-    1.2 + (oppStrength - team.defense) * 0.06 - midEdge + gauss(0, 0.25)
-  );
+  const teamXg = Math.max(0.25, 1.25 + (attack - oppStrength) * 0.06 + midEdge + gauss(0, 0.25));
+  const oppXg = Math.max(0.2, 1.2 + (oppStrength - defense) * 0.06 - midEdge + gauss(0, 0.25));
 
   let teamGoals = poisson(teamXg);
   let oppGoals = poisson(oppXg);
@@ -115,9 +122,10 @@ function playMatch(
   let draw = teamGoals === oppGoals;
   let win = teamGoals > oppGoals;
   let penalties: { team: number; opp: number } | undefined;
+  let upset = false;
+  let story: string | undefined;
 
   if (knockout && draw) {
-    // penalty shootout — slight edge to higher overall
     const edge = (team.overall - oppStrength) * 0.01;
     let tp = 0;
     let op = 0;
@@ -134,32 +142,58 @@ function playMatch(
     draw = false;
   }
 
+  // Rare upset: when clearly favoured, a non-loss can flip on a bad day.
+  const favoured = attack > oppStrength + 5;
+  if (favoured && (win || draw)) {
+    const upsetChance = oppStrength >= 82 ? 0.04 : 0.08;
+    if (Math.random() < upsetChance) {
+      upset = true;
+      story = SOCCER_UPSET_STORIES[Math.floor(Math.random() * SOCCER_UPSET_STORIES.length)];
+      if (knockout) {
+        // a heartbreak shootout loss
+        penalties = { team: 3, opp: 4 };
+        teamGoals = oppGoals = Math.min(teamGoals, oppGoals);
+        win = false;
+        draw = false;
+      } else {
+        oppGoals = teamGoals + 1;
+        win = false;
+        draw = false;
+      }
+    }
+  }
+
   return {
     round,
     opponent,
     teamGoals,
     oppGoals,
     scorers: pickScorers(starters, teamGoals),
-    oppScorers: Array.from({ length: oppGoals }, (_, i) => ({
+    oppScorers: Array.from({ length: oppGoals }, () => ({
       name: opponent,
       minute: 1 + Math.floor(Math.random() * 90),
     })).sort((a, b) => a.minute - b.minute),
     win,
     draw,
     penalties,
+    upset,
+    story,
   };
 }
 
 const KNOCKOUT_ROUNDS = ["Round of 16", "Quarter-Final", "Semi-Final", "Final"];
 
-export function simulateTournament(starters: SoccerPlayer[]): SoccerTournamentResult {
+export function simulateTournament(
+  starters: SoccerPlayer[],
+  chem = 0
+): SoccerTournamentResult {
   const team = teamStrength(starters);
   const matches: SoccerMatchResult[] = [];
 
   // Group stage — 3 games, always played (you qualify on results but progression continues)
   for (let i = 0; i < 3; i++) {
     const oppStrength = 74 + gauss(2, 5);
-    matches.push(playMatch(`Group Game ${i + 1}`, team, starters, oppStrength, false));
+    matches.push(playMatch(`Group Game ${i + 1}`, team, starters, oppStrength, false, chem));
   }
 
   // Knockout — opponents get progressively stronger
@@ -167,7 +201,7 @@ export function simulateTournament(starters: SoccerPlayer[]): SoccerTournamentRe
   let reachedRound = "Group Stage";
   for (let r = 0; r < KNOCKOUT_ROUNDS.length; r++) {
     const oppStrength = 78 + r * 2.5 + gauss(2, 4);
-    const m = playMatch(KNOCKOUT_ROUNDS[r], team, starters, oppStrength, true);
+    const m = playMatch(KNOCKOUT_ROUNDS[r], team, starters, oppStrength, true, chem);
     matches.push(m);
     reachedRound = KNOCKOUT_ROUNDS[r];
     if (!m.win) break;

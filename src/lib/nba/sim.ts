@@ -27,40 +27,63 @@ const OPPONENTS = [
   "San Antonio", "Charlotte", "Washington", "Detroit",
 ];
 
-export function simulateSeason(rating: number): NbaSeasonResult {
+const UPSET_STORIES = [
+  "Went ice cold from three — 4/26 from deep.",
+  "21 turnovers handed it away.",
+  "Star fouled out with 6 minutes left.",
+  "Blew a 17-point lead in the fourth.",
+  "Couldn't buy a free throw — 11/24 from the line.",
+  "Ran out of legs on the second night of a back-to-back.",
+  "Beaten at the buzzer on a contested three.",
+  "Outscored 38-19 in a nightmare third quarter.",
+];
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+export function simulateSeason(rating: number, chem = 0): NbaSeasonResult {
   const games: NbaGameResult[] = [];
   let wins = 0;
   let losses = 0;
+  // chemistry nudges effective quality (and therefore win probability)
+  const eff = rating + chem * 0.25;
 
   for (let i = 0; i < 82; i++) {
-    // league opponents centered around 85, your roster is usually higher
     const oppRating = 78 + gauss(7, 6);
     const homeEdge = i % 2 === 0 ? 2.0 : -1.0;
+    const diff = eff - oppRating + homeEdge;
 
-    // base points scale with quality; diff drives the margin
-    const diff = rating - oppRating + homeEdge;
-    const teamScore = Math.max(
-      82,
-      Math.round(104 + (rating - 88) * 0.9 + diff * 0.55 + gauss(0, 8))
-    );
-    const oppScore = Math.max(
-      80,
-      Math.round(104 + (oppRating - 84) * 0.9 - diff * 0.45 + gauss(0, 8))
-    );
+    // logistic win probability, floored so even an all-time team can be upset
+    // (~0.8% per game ≈ roughly one loss across a full season at the very top)
+    const wp = clamp(1 / (1 + Math.exp(-diff / 6)), 0.05, 0.992);
+    const win = Math.random() < wp;
 
-    let t = teamScore;
-    let o = oppScore;
-    if (t === o) t += Math.random() < 0.5 ? 1 : -1; // no ties, settle in OT
-    const win = t > o;
+    let margin = clamp(Math.round(Math.abs(diff) * 0.45 + Math.abs(gauss(0, 7))), 1, 32);
+    let upset = false;
+    let story: string | undefined;
+    // a loss when heavily favored is a true upset: keep it close, give it a story
+    if (!win && wp >= 0.85) {
+      upset = true;
+      margin = 1 + Math.floor(Math.random() * 4);
+      story = UPSET_STORIES[Math.floor(Math.random() * UPSET_STORIES.length)];
+    }
+
+    const total = 208 + Math.round(gauss(0, 9));
+    const loser = Math.max(80, Math.round(total / 2 - margin / 2));
+    const winner = loser + margin;
+
     if (win) wins++;
     else losses++;
 
     games.push({
       game: i + 1,
       opponent: OPPONENTS[Math.floor(Math.random() * OPPONENTS.length)],
-      teamScore: Math.max(t, o === t ? t + 1 : t),
-      oppScore: o,
+      teamScore: win ? winner : loser,
+      oppScore: win ? loser : winner,
       win,
+      upset,
+      story,
     });
   }
 
