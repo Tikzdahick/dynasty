@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { currentStreak } from "@/lib/store/stats";
 
 const LEGENDS = [
   "Michael Jordan", "Pelé", "LeBron James", "Maradona", "Kareem", "Messi",
@@ -13,6 +15,11 @@ const LEGENDS = [
 
 export default function HomePage() {
   const router = useRouter();
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    setStreak(currentStreak());
+  }, []);
 
   const playDaily = (sport: "nba" | "soccer") => {
     sessionStorage.setItem(`dynasty.${sport}.mode`, "daily");
@@ -72,6 +79,32 @@ export default function HomePage() {
           />
         </div>
 
+        {/* MyTeam promo */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mx-auto mt-5 max-w-4xl"
+        >
+          <Link
+            href="/myteam"
+            className="group flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-500/15 via-panel/70 to-amber-400/10 p-5 transition hover:border-fuchsia-400/40"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🃏</span>
+              <div>
+                <div className="font-bold">
+                  MyTeam <span className="ml-1 rounded bg-fuchsia-400/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-fuchsia-200">New</span>
+                </div>
+                <p className="text-sm text-white/55">Open packs, collect legendary cards, build your ultimate roster.</p>
+              </div>
+            </div>
+            <span className="shrink-0 text-sm font-semibold text-white/80 transition group-hover:translate-x-1">
+              Open packs →
+            </span>
+          </Link>
+        </motion.div>
+
         {/* Daily Challenge */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -83,6 +116,11 @@ export default function HomePage() {
             <div className="flex items-center justify-center gap-2 sm:justify-start">
               <span className="text-xl">📅</span>
               <span className="font-bold">Daily Challenge</span>
+              {streak > 1 && (
+                <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-bold text-amber-300">
+                  🔥 {streak}-day streak
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-sm text-white/50">
               Everyone drafts the same spins today. No skips — just instincts.

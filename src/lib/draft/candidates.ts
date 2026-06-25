@@ -3,6 +3,7 @@ import { NBA_ICONIC } from "@/lib/nba/teams";
 import { SOCCER_ICONIC } from "@/lib/soccer/teams";
 import { nbaEligible, nbaRoles } from "@/lib/nba/eligibility";
 import { soccerEligible, soccerRoles } from "@/lib/soccer/eligibility";
+import { validateDeck, reportDataErrors } from "./validate";
 
 export interface StatBar {
   label: string;
@@ -102,3 +103,25 @@ export const soccerDeck: Deck<SoccerPlayer> = makeDeck(
     { label: "DEF", value: p.defending },
   ]
 );
+
+// Hard data-integrity gate: enforces the strict player–team rules at build
+// time. If any roster ever violates them, `next build` fails loudly.
+const NBA_POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
+const SOCCER_POSITIONS = ["GK", "DEF", "MID", "FWD"] as const;
+
+reportDataErrors([
+  ...validateDeck({
+    label: "NBA",
+    iconic: NBA_ICONIC,
+    validPositions: NBA_POSITIONS,
+    eligible: nbaEligible,
+    candidates: nbaDeck.candidates,
+  }),
+  ...validateDeck({
+    label: "Soccer",
+    iconic: SOCCER_ICONIC,
+    validPositions: SOCCER_POSITIONS,
+    eligible: soccerEligible,
+    candidates: soccerDeck.candidates,
+  }),
+]);

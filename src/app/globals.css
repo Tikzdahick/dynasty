@@ -88,3 +88,19 @@ body {
 .timer-pulse {
   animation: timer-pulse 0.6s ease-in-out infinite;
 }
+
+/* Respect users who prefer reduced motion: kill looping/long animations and
+   collapse transitions so the app stays usable without the flourishes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ghost-shimmer::after {
+    display: none;
+  }
+}

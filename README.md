@@ -70,3 +70,8 @@ supabase/schema.sql     database tables + RLS policies
 - **Simulation** — team rating vs. randomized opponents with Gaussian variance, so upsets happen and 82-0 is genuinely hard.
 - **Soccer IQ mode** — stats are hidden during the draft; pick from memory.
 - **Knockouts** — draws go to penalty shootouts; lose and you're out.
+- **Team identity** — every finished roster is auto-named by its stat profile (e.g. _Run & Gun_, _Catenaccio_, _Tiki-Taka Dynasty_).
+- **Awards & recap** — the result screen mines the sim for highlights: Franchise Player / Golden Boot, signature wins, win streaks, clean sheets.
+- **Shareable cards** — copy a spoiler-light, Wordle-style emoji grid of your run; daily challenges are tagged by date.
+- **Daily streaks** — completing a Daily Challenge builds a 🔥 streak (tracked locally), surfaced on the home page and profile.
+- **Achievements** — 12 unlockable badges (82-0, World Champions, Golden Boot, Elite chemistry, streak milestones, …) shown on your profile.

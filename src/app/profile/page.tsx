@@ -4,16 +4,24 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { getLocalNba, getLocalSoccer } from "@/lib/store/local";
+import { currentStreak, getStreak, getUnlocked } from "@/lib/store/stats";
+import { ACHIEVEMENTS } from "@/lib/achievements";
 import { NbaLeaderboardEntry, SoccerLeaderboardEntry } from "@/types";
 
 export default function ProfilePage() {
   const { user, displayName, configured, signOut } = useAuth();
   const [nba, setNba] = useState<NbaLeaderboardEntry[]>([]);
   const [soccer, setSoccer] = useState<SoccerLeaderboardEntry[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [unlocked, setUnlocked] = useState<string[]>([]);
 
   useEffect(() => {
     setNba(getLocalNba().reverse());
     setSoccer(getLocalSoccer().reverse());
+    setStreak(currentStreak());
+    setBestStreak(getStreak().best);
+    setUnlocked(getUnlocked());
   }, []);
 
   const bestNba = nba.reduce<NbaLeaderboardEntry | null>(
@@ -59,11 +67,46 @@ export default function ProfilePage() {
       )}
 
       {/* quick stats */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label="Best NBA" value={bestNba ? `${bestNba.wins}-${bestNba.losses}` : "—"} accent="text-nba" />
         <StatTile label="Seasons" value={String(nba.length)} accent="text-nba" />
         <StatTile label="Trophies" value={champ ? "🏆" : "0"} accent="text-soccer" />
+        <StatTile
+          label={bestStreak > streak ? `Streak · best ${bestStreak}` : "Daily streak"}
+          value={streak > 0 ? `🔥 ${streak}` : "0"}
+          accent="text-soccer-gold"
+        />
       </div>
+
+      {/* achievements */}
+      <section className="mb-8">
+        <h2 className="mb-3 flex items-center justify-between text-lg font-bold">
+          <span>🎖 Achievements</span>
+          <span className="text-sm font-normal text-white/40">
+            {unlocked.length}/{ACHIEVEMENTS.length}
+          </span>
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {ACHIEVEMENTS.map((a) => {
+            const got = unlocked.includes(a.id);
+            return (
+              <div
+                key={a.id}
+                className={`card flex items-center gap-3 p-3 transition ${
+                  got ? "" : "opacity-40 grayscale"
+                }`}
+                title={a.desc}
+              >
+                <span className="text-2xl">{got ? a.emoji : "🔒"}</span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold">{a.label}</div>
+                  <div className="truncate text-[11px] text-white/45">{a.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       {/* NBA rosters */}
       <Section title="🏀 NBA Seasons" empty={nba.length === 0} href="/nba" cta="Play NBA Mode">

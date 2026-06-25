@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,13 @@ import { useAuth } from "@/lib/auth";
 import { saveSoccerResult } from "@/lib/store/leaderboard";
 import { computeChemistry, Chemistry } from "@/lib/chemistry";
 import { PreSimSummary } from "@/components/PreSimSummary";
+import { soccerIdentity } from "@/lib/identity";
+import { soccerAwards } from "@/lib/awards";
+import { soccerShareText } from "@/lib/share";
+import { ResultExtras } from "@/components/ResultExtras";
+import { evaluateSoccer } from "@/lib/achievements";
+import { recordDailyPlay, currentStreak, unlock } from "@/lib/store/stats";
+import { getLocalNba, getLocalSoccer } from "@/lib/store/local";
 
 function soccerSlots(formationName: FormationName): SlotDef[] {
   const slots = FORMATIONS[formationName].slots.map((s, i) => ({
@@ -160,7 +167,7 @@ export default function SoccerDraftPage() {
 
         {phase === "done" && result && (
           <motion.div key="r" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <TournamentResult result={result} xi={xi} formationName={formationName} chemistry={chemistry} onReset={() => router.push("/soccer")} />
+            <TournamentResult result={result} xi={xi} formationName={formationName} chemistry={chemistry} mode={mode ?? "classic"} onReset={() => router.push("/soccer")} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -226,18 +233,59 @@ function TournamentResult({
   xi,
   formationName,
   chemistry,
+  mode,
   onReset,
 }: {
   result: SoccerTournamentResult;
   xi: SoccerPlayer[];
   formationName: FormationName;
   chemistry: Chemistry | null;
+  mode: DraftMode;
   onReset: () => void;
 }) {
   const { user, displayName, guestName, setGuestName } = useAuth();
   const [name, setName] = useState(displayName !== "Guest" ? displayName : guestName);
   const [saved, setSaved] = useState<"idle" | "saving" | "cloud" | "local">("idle");
   const upset = result.matches.find((m) => m.upset);
+
+  const daily = mode === "daily";
+  const identity = useMemo(
+    () => soccerIdentity(xi, formationName, chemistry?.label),
+    [xi, formationName, chemistry]
+  );
+  const awards = useMemo(() => soccerAwards(result, xi), [result, xi]);
+  const [streak, setStreak] = useState(0);
+  const [newAch, setNewAch] = useState<string[]>([]);
+  const shareText = useMemo(
+    () =>
+      soccerShareText({
+        result,
+        formation: formationName,
+        identity,
+        mode: labelFor(mode),
+        daily,
+        streak,
+      }),
+    [result, formationName, identity, mode, daily, streak]
+  );
+
+  // record streak (daily only) + evaluate achievements once when the result mounts
+  useEffect(() => {
+    const s = daily ? recordDailyPlay().count : currentStreak();
+    setStreak(s);
+    const hadGhost = xi.some((p) => (p as GhostSoccer).ghost);
+    const savedCount = getLocalNba().length + getLocalSoccer().length;
+    const ids = evaluateSoccer({
+      result,
+      chem: chemistry?.label,
+      mode,
+      streak: s,
+      savedCount,
+      hadGhost,
+    });
+    setNewAch(unlock(ids));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = async () => {
     if (!name.trim()) return;
@@ -297,6 +345,17 @@ function TournamentResult({
             🫥 Ghost busted — a decoy you drafted played well below its flashy card.
           </p>
         )}
+      </div>
+
+      <div className="mt-6">
+        <ResultExtras
+          accent="soccer"
+          identity={identity}
+          awards={awards}
+          shareText={shareText}
+          newAchievements={newAch}
+          streak={streak}
+        />
       </div>
 
       <div className="card mt-6 p-4">

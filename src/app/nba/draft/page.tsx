@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -13,6 +13,13 @@ import { useAuth } from "@/lib/auth";
 import { saveNbaResult } from "@/lib/store/leaderboard";
 import { computeChemistry, Chemistry } from "@/lib/chemistry";
 import { PreSimSummary } from "@/components/PreSimSummary";
+import { nbaIdentity } from "@/lib/identity";
+import { nbaAwards } from "@/lib/awards";
+import { nbaShareText } from "@/lib/share";
+import { ResultExtras } from "@/components/ResultExtras";
+import { evaluateNba } from "@/lib/achievements";
+import { recordDailyPlay, currentStreak, unlock } from "@/lib/store/stats";
+import { getLocalNba, getLocalSoccer } from "@/lib/store/local";
 
 const NBA_SLOTS: SlotDef[] = [
   { id: "pg", position: "PG", label: "PG", x: 58, y: 26 },
@@ -240,6 +247,34 @@ function SeasonResult({
   const { strengths, weaknesses } = analyze(roster);
   const upsets = season.games.filter((g) => g.upset);
 
+  const daily = mode === "daily";
+  const identity = useMemo(() => nbaIdentity(roster, chemistry?.label), [roster, chemistry]);
+  const awards = useMemo(() => nbaAwards(season, roster), [season, roster]);
+  const [streak, setStreak] = useState(0);
+  const [newAch, setNewAch] = useState<string[]>([]);
+  const shareText = useMemo(
+    () => nbaShareText({ season, grade, identity, mode: labelFor(mode), daily, streak }),
+    [season, grade, identity, mode, daily, streak]
+  );
+
+  // record streak (daily only) + evaluate achievements once when the result mounts
+  useEffect(() => {
+    const s = daily ? recordDailyPlay().count : currentStreak();
+    setStreak(s);
+    const hadGhost = roster.some((p) => (p as GhostNba).ghost);
+    const savedCount = getLocalNba().length + getLocalSoccer().length;
+    const ids = evaluateNba({
+      season,
+      chem: chemistry?.label,
+      mode,
+      streak: s,
+      savedCount,
+      hadGhost,
+    });
+    setNewAch(unlock(ids));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const save = async () => {
     if (!name.trim()) return;
     if (!user) setGuestName(name.trim());
@@ -329,6 +364,17 @@ function SeasonResult({
             🫥 Ghost busted — a decoy you drafted played well below its flashy card.
           </p>
         )}
+      </div>
+
+      <div className="mt-4">
+        <ResultExtras
+          accent="nba"
+          identity={identity}
+          awards={awards}
+          shareText={shareText}
+          newAchievements={newAch}
+          streak={streak}
+        />
       </div>
 
       <div className="card mt-4 p-4">
