@@ -39,6 +39,31 @@ export default function SoccerModeSelect() {
         </p>
       </div>
 
+      {/* Soccer MyTeam promo */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-4"
+      >
+        <Link
+          href="/soccer/myteam"
+          className="group flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-emerald-400/20 bg-gradient-to-r from-emerald-500/15 via-panel/70 to-amber-400/10 p-5 transition hover:border-emerald-400/40"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🃏</span>
+            <div>
+              <div className="font-bold">
+                Soccer MyTeam <span className="ml-1 rounded bg-emerald-400/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">New</span>
+              </div>
+              <p className="text-sm text-white/55">Open packs, collect icons, build your ultimate XI.</p>
+            </div>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-white/80 transition group-hover:translate-x-1">
+            Open packs →
+          </span>
+        </Link>
+      </motion.div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         {MODES.map((m, i) => (
           <motion.button
