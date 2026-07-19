@@ -122,6 +122,7 @@ export interface Card {
   moment?: boolean; // limited-time Moments card
   momentTitle?: string; // e.g. "81-Point Game"
   upgradeLevel?: number; // applied by player upgrades for display
+  nbaPlayerId?: number; // NBA.com person id for a real headshot (legends/moments)
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -170,6 +171,7 @@ function legendToCard(p: NbaPlayer): Card {
     overall: p.overall,
     rarity: rarityFor(p.overall),
     era: p.era,
+    nbaPlayerId: p.nbaPlayerId,
     ...stats,
   };
 }
@@ -259,14 +261,15 @@ interface MomentDef {
   overall: number;
   era: string;
   title: string;
+  nbaPlayerId?: number;
 }
 const MOMENT_DEFS: MomentDef[] = [
-  { id: "mom-kobe81", name: "Kobe Bryant", position: "SG", overall: 97, era: "2006", title: "81-Point Game" },
-  { id: "mom-lebron-fmvp", name: "LeBron James", position: "SF", overall: 99, era: "2016", title: "Finals MVP" },
-  { id: "mom-mj-flu", name: "Michael Jordan", position: "SG", overall: 99, era: "1997", title: "The Flu Game" },
-  { id: "mom-curry-msg", name: "Stephen Curry", position: "PG", overall: 97, era: "2021", title: "54 at the Garden" },
-  { id: "mom-giannis-50", name: "Giannis Antetokounmpo", position: "PF", overall: 98, era: "2021", title: "Title-Clincher 50" },
-  { id: "mom-dirk-2011", name: "Dirk Nowitzki", position: "PF", overall: 96, era: "2011", title: "2011 Title Run" },
+  { id: "mom-kobe81", name: "Kobe Bryant", position: "SG", overall: 97, era: "2006", title: "81-Point Game", nbaPlayerId: 977 },
+  { id: "mom-lebron-fmvp", name: "LeBron James", position: "SF", overall: 99, era: "2016", title: "Finals MVP", nbaPlayerId: 2544 },
+  { id: "mom-mj-flu", name: "Michael Jordan", position: "SG", overall: 99, era: "1997", title: "The Flu Game", nbaPlayerId: 893 },
+  { id: "mom-curry-msg", name: "Stephen Curry", position: "PG", overall: 97, era: "2021", title: "54 at the Garden", nbaPlayerId: 201939 },
+  { id: "mom-giannis-50", name: "Giannis Antetokounmpo", position: "PF", overall: 98, era: "2021", title: "Title-Clincher 50", nbaPlayerId: 203507 },
+  { id: "mom-dirk-2011", name: "Dirk Nowitzki", position: "PF", overall: 96, era: "2011", title: "2011 Title Run", nbaPlayerId: 1717 },
 ];
 
 function buildMomentCards(): Card[] {
@@ -281,6 +284,7 @@ function buildMomentCards(): Card[] {
       era: m.era,
       moment: true,
       momentTitle: m.title,
+      nbaPlayerId: m.nbaPlayerId,
       ...stats,
     };
   });

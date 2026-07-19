@@ -11,6 +11,7 @@ export interface NbaPlayer {
   apg: number;
   overall: number; // 1-100
   cost: number; // draft points
+  nbaPlayerId?: number; // NBA.com person id for real headshots; omit when unknown
 }
 
 export interface NbaGameResult {

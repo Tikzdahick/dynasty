@@ -32,6 +32,29 @@ create table if not exists public.soccer_results (
 
 create index if not exists soccer_results_created_idx on public.soccer_results (created_at desc);
 
+-- ---------- NBA players (headshots) ----------
+-- NOTE: the running app currently reads its roster from the static array in
+-- src/lib/nba/players.ts, NOT from this table. This is defined here so that
+-- `nba_player_id` (the NBA.com person id used to build headshot URLs,
+-- https://cdn.nba.com/headshots/nba/latest/1040x760/<nba_player_id>.png) has a
+-- home if/when the roster moves into Supabase. Safe to run; nothing depends on it yet.
+create table if not exists public.nba_players (
+  id text primary key,                 -- slug id, matches NbaPlayer.id in the app
+  name text not null,
+  era text,
+  position text,
+  ppg numeric,
+  rpg numeric,
+  apg numeric,
+  overall int not null,
+  cost int,
+  nba_player_id int,                   -- nullable: not every player has one yet
+  created_at timestamptz not null default now()
+);
+
+-- If the table already exists from an earlier run, make sure the column is present.
+alter table public.nba_players add column if not exists nba_player_id int;
+
 -- ---------- Row Level Security ----------
 alter table public.nba_results enable row level security;
 alter table public.soccer_results enable row level security;
