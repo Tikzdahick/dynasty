@@ -1,5 +1,6 @@
 // One-time (re-runnable) script: resolve a Wikipedia lead-image thumbnail for
-// every soccer player in the roster and cache the URLs into
+// every real soccer player in the card pool — the roster (players.ts) AND the
+// iconic national-team squads (teams.ts) — and cache the URLs into
 // src/lib/soccer/wikipediaImages.ts, so the app never hits Wikipedia at runtime.
 //
 //   node scripts/fetch-wiki-images.mjs
@@ -15,22 +16,38 @@ import { dirname, join } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const PLAYERS_TS = join(root, "src/lib/soccer/players.ts");
+const TEAMS_TS = join(root, "src/lib/soccer/teams.ts"); // SOCCER_ICONIC squads
 const OVERRIDES_JSON = join(root, "src/lib/soccer/wikiTitleOverrides.json");
 const OUT_TS = join(root, "src/lib/soccer/wikipediaImages.ts");
 
 const overrides = JSON.parse(readFileSync(OVERRIDES_JSON, "utf8"));
 
-// id slug — must match SoccerPlayer.id generation in src/lib/soccer/players.ts.
-const slugId = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+// id slug — must match the card id generation used across the app: players.ts
+// uses name.toLowerCase().replace(/[^a-z0-9]+/g,"-"); the iconic squads use
+// slug() from lib/cost.ts (the same, plus trimming leading/trailing "-").
+const slugId = (name) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-// Parse player names straight from the roster source so this stays in sync.
-function readPlayerNames() {
-  const src = readFileSync(PLAYERS_TS, "utf8");
+// Parse `name: "..."` entries straight from a source file so this stays in sync.
+// Both players.ts and teams.ts list only real players this way (generated commons
+// are built in code, not data), so this yields exactly the real cards in the pool.
+function readNames(file) {
+  const src = readFileSync(file, "utf8");
   const names = [];
   const re = /name:\s*"([^"]+)"/g;
   let m;
   while ((m = re.exec(src)) !== null) names.push(m[1]);
   return names;
+}
+
+// Unique real players across the roster + iconic squads, deduped by card id.
+function collectPlayers() {
+  const byId = new Map(); // slugId -> name (first spelling wins)
+  for (const name of [...readNames(PLAYERS_TS), ...readNames(TEAMS_TS)]) {
+    const id = slugId(name);
+    if (!byId.has(id)) byId.set(id, name);
+  }
+  return [...byId.entries()]; // [ [id, name], ... ]
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -68,17 +85,19 @@ async function getWikipediaImage(playerName, { retries = 4 } = {}) {
 }
 
 async function main() {
-  const names = readPlayerNames();
-  console.log(`Resolving Wikipedia images for ${names.length} players...\n`);
+  const players = collectPlayers(); // [ [id, name], ... ]
+  console.log(
+    `Resolving Wikipedia images for ${players.length} unique players (roster + iconic squads)...\n`
+  );
 
   const map = {};
   const resolved = [];
   const misses = [];
 
-  for (const name of names) {
+  for (const [id, name] of players) {
     const { url, status } = await getWikipediaImage(name);
     if (url) {
-      map[slugId(name)] = url;
+      map[id] = url;
       resolved.push(name);
     } else {
       misses.push({ name, status });
