@@ -6,8 +6,14 @@ function cost(overall: number): number {
 
 type Raw = Omit<SoccerPlayer, "id" | "cost" | "overall"> & { overall: number };
 
+// `espnPlayerId` is the ESPN player id used to build real headshot URLs
+// (https://a.espncdn.com/i/headshots/soccer/players/full/<espnPlayerId>.png). It
+// is optional: players without a verified id fall back to the initials medallion
+// in PlayerCard. Only add an id you've confirmed loads the correct player — a
+// wrong id shows someone else's photo. Look ids up on espn.com/soccer (the number
+// in a player's profile URL). Messi (45843) is verified; fill in the rest as you go.
 const raw: Raw[] = [
-  { name: "Lionel Messi", country: "Argentina", era: "2010s", position: "FWD", pace: 88, shooting: 94, passing: 95, defending: 38, overall: 98 },
+  { name: "Lionel Messi", country: "Argentina", era: "2010s", position: "FWD", pace: 88, shooting: 94, passing: 95, defending: 38, overall: 98, espnPlayerId: 45843 },
   { name: "Cristiano Ronaldo", country: "Portugal", era: "2010s", position: "FWD", pace: 90, shooting: 95, passing: 82, defending: 35, overall: 97 },
   { name: "Pele", country: "Brazil", era: "1960s", position: "FWD", pace: 90, shooting: 95, passing: 90, defending: 40, overall: 98 },
   { name: "Diego Maradona", country: "Argentina", era: "1980s", position: "FWD", pace: 87, shooting: 90, passing: 93, defending: 38, overall: 97 },

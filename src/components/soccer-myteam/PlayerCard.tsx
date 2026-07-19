@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Card, tierForCard } from "@/lib/soccer-myteam/cards";
+
+const HEADSHOT_BASE = "https://a.espncdn.com/i/headshots/soccer/players/full";
 
 interface Props {
   card?: Card | null;
@@ -59,11 +62,9 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
         </span>
       </div>
 
-      {/* portrait stand-in (initials medallion) */}
+      {/* portrait: real ESPN headshot when available, initials medallion otherwise */}
       <div className="flex justify-center py-1">
-        <div className={`flex aspect-square ${size === "lg" ? "w-20" : "w-12"} items-center justify-center rounded-full bg-black/30 font-black text-white/80`}>
-          {initials(card.name)}
-        </div>
+        <Portrait card={card} size={size} />
       </div>
 
       {/* name */}
@@ -86,6 +87,33 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
         <Stat label="DEF" value={card.defending} />
       </div>
     </Tag>
+  );
+}
+
+/** Circular portrait: real ESPN headshot when the card has an espnPlayerId and
+ *  the image loads, otherwise the initials medallion placeholder. */
+function Portrait({ card, size }: { card: Card; size: "sm" | "md" | "lg" }) {
+  const [failed, setFailed] = useState(false);
+  const dim = size === "lg" ? "w-20" : "w-12";
+  const showPhoto = card.espnPlayerId != null && !failed;
+
+  return (
+    <div
+      className={`flex aspect-square ${dim} items-center justify-center overflow-hidden rounded-full bg-black/30 font-black text-white/80`}
+    >
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDN unproxied; onError drives the initials fallback
+        <img
+          src={`${HEADSHOT_BASE}/${card.espnPlayerId}.png`}
+          alt={card.name}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover object-top"
+        />
+      ) : (
+        initials(card.name)
+      )}
+    </div>
   );
 }
 

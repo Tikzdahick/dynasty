@@ -99,6 +99,7 @@ export interface Card {
   moment?: boolean; // limited-time Moments card
   momentTitle?: string; // e.g. "Hand of God"
   upgradeLevel?: number; // applied by player upgrades for display
+  espnPlayerId?: number; // ESPN player id for a real headshot (legends/moments)
 }
 
 /** Apply a player-upgrade level to a card: small stat + overall bumps. */
@@ -167,6 +168,7 @@ function legendToCard(p: SoccerPlayer): Card {
     defending: p.defending,
     era: p.era,
     country: p.country,
+    espnPlayerId: p.espnPlayerId,
   };
 }
 
@@ -261,10 +263,11 @@ interface MomentDef {
   shooting: number;
   passing: number;
   defending: number;
+  espnPlayerId?: number;
 }
 const MOMENT_DEFS: MomentDef[] = [
   { id: "mom-maradona-86", name: "Diego Maradona", position: "FWD", overall: 99, era: "1986", country: "Argentina", title: "Goal of the Century", pace: 92, shooting: 93, passing: 96, defending: 40 },
-  { id: "mom-messi-2022", name: "Lionel Messi", position: "FWD", overall: 99, era: "2022", country: "Argentina", title: "World Cup Glory", pace: 88, shooting: 95, passing: 97, defending: 40 },
+  { id: "mom-messi-2022", name: "Lionel Messi", position: "FWD", overall: 99, era: "2022", country: "Argentina", title: "World Cup Glory", pace: 88, shooting: 95, passing: 97, defending: 40, espnPlayerId: 45843 },
   { id: "mom-zidane-2002", name: "Zinedine Zidane", position: "MID", overall: 98, era: "2002", country: "France", title: "Glasgow Volley", pace: 80, shooting: 92, passing: 97, defending: 66 },
   { id: "mom-r9-2002", name: "Ronaldo Nazario", position: "FWD", overall: 97, era: "2002", country: "Brazil", title: "World Cup Redemption", pace: 96, shooting: 96, passing: 82, defending: 30 },
   { id: "mom-iniesta-2010", name: "Andres Iniesta", position: "MID", overall: 96, era: "2010", country: "Spain", title: "The 116th Minute", pace: 78, shooting: 86, passing: 96, defending: 64 },
@@ -282,6 +285,7 @@ function buildMomentCards(): Card[] {
     country: m.country,
     moment: true,
     momentTitle: m.title,
+    espnPlayerId: m.espnPlayerId,
     pace: m.pace,
     shooting: m.shooting,
     passing: m.passing,

@@ -55,6 +55,31 @@ create table if not exists public.nba_players (
 -- If the table already exists from an earlier run, make sure the column is present.
 alter table public.nba_players add column if not exists nba_player_id int;
 
+-- ---------- Soccer players (headshots) ----------
+-- NOTE: like nba_players above, the running app currently reads its soccer roster
+-- from the static array in src/lib/soccer/players.ts, NOT from this table. This is
+-- defined here so that `espn_player_id` (the ESPN player id used to build headshot
+-- URLs, https://a.espncdn.com/i/headshots/soccer/players/full/<espn_player_id>.png)
+-- has a home if/when the roster moves into Supabase. Safe to run; nothing depends on it yet.
+create table if not exists public.soccer_players (
+  id text primary key,                 -- slug id, matches SoccerPlayer.id in the app
+  name text not null,
+  country text,
+  era text,
+  position text,
+  pace int,
+  shooting int,
+  passing int,
+  defending int,
+  overall int not null,
+  cost int,
+  espn_player_id int,                  -- nullable: not every player has one yet
+  created_at timestamptz not null default now()
+);
+
+-- If the table already exists from an earlier run, make sure the column is present.
+alter table public.soccer_players add column if not exists espn_player_id int;
+
 -- ---------- Row Level Security ----------
 alter table public.nba_results enable row level security;
 alter table public.soccer_results enable row level security;
