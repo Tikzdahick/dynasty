@@ -47,6 +47,7 @@ export interface SoccerPlayer {
   overall: number;
   cost: number;
   espnPlayerId?: number; // ESPN player id for real headshots; omit when unknown
+  club?: string; // iconic club, for club-based team chemistry
 }
 
 export type FormationName = "4-3-3" | "4-4-2" | "3-5-2" | "4-2-3-1";

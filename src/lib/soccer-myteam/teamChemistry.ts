@@ -1,33 +1,57 @@
-// Team chemistry — cards from the same starter-pack side build chemistry, which
-// adds a small overall/stat bonus so a themed XI performs better. (Legend/Moment
-// cards aren't team-affiliated, so chemistry rewards building around a squad.)
+// Team chemistry — FIFA-Ultimate-Team style. Players who share a national team
+// (country) or a club build chemistry links; bigger shared blocks give a larger
+// team-rating bonus, so a themed XI (e.g. a Brazil core, or a Barcelona spine)
+// performs better. Starter-pack "team" affiliation (the generated commons) still
+// counts as a link too, so early squads built from a Starter Pack keep chemistry.
 import { Card } from "@/lib/soccer-myteam/cards";
 
 export type ChemLabel = "None" | "Decent" | "Strong" | "Elite";
+export type ChemKind = "country" | "club" | "team";
+
+export interface ChemGroup {
+  team: string; // the shared attribute's display label (country / club / starter-pack)
+  count: number;
+  kind?: ChemKind;
+}
 
 export interface TeamChemistry {
   rating: number; // 0–100
   bonus: number; // overall points added to the team rating
   label: ChemLabel;
-  groups: { team: string; count: number }[];
+  groups: ChemGroup[];
+}
+
+// Points per extra member of a shared block, by link kind. Club links are worth
+// a touch more than country (tighter familiarity), both above nothing.
+const WEIGHTS: Record<ChemKind, number> = { club: 10, country: 8, team: 8 };
+
+function groupsFor(
+  cards: Card[],
+  kind: ChemKind,
+  pick: (c: Card) => string | undefined
+): ChemGroup[] {
+  const counts = new Map<string, number>();
+  for (const c of cards) {
+    const key = pick(c);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([team, count]) => ({ team, count, kind }));
 }
 
 export function computeTeamChemistry(cards: Card[]): TeamChemistry {
-  const counts = new Map<string, number>();
-  for (const c of cards) {
-    if (!c.team) continue;
-    counts.set(c.team, (counts.get(c.team) ?? 0) + 1);
-  }
-  const groups = [...counts.entries()]
-    .map(([team, count]) => ({ team, count }))
-    .filter((g) => g.count >= 2)
-    .sort((a, b) => b.count - a.count);
+  const groups: ChemGroup[] = [
+    ...groupsFor(cards, "country", (c) => c.country),
+    ...groupsFor(cards, "club", (c) => c.club),
+    ...groupsFor(cards, "team", (c) => c.team),
+  ].sort((a, b) => b.count - a.count);
 
-  // each same-side pairing contributes; bigger blocks contribute more
   let points = 0;
-  for (const g of groups) points += (g.count - 1) * 12;
+  for (const g of groups) points += (g.count - 1) * WEIGHTS[g.kind ?? "country"];
   const rating = Math.max(0, Math.min(100, points));
-  const bonus = Math.round((rating / 100) * 4); // up to +4 OVR
+  const bonus = Math.round((rating / 100) * 5); // up to +5 OVR
 
   const label: ChemLabel =
     rating >= 70 ? "Elite" : rating >= 40 ? "Strong" : rating >= 15 ? "Decent" : "None";
@@ -40,4 +64,11 @@ export const CHEM_COLORS: Record<ChemLabel, string> = {
   Decent: "text-sky-300",
   Strong: "text-emerald-300",
   Elite: "text-amber-300",
+};
+
+// Small icon per link kind for the chemistry-links display.
+export const CHEM_KIND_ICON: Record<ChemKind, string> = {
+  country: "🌍",
+  club: "🛡️",
+  team: "⭐",
 };

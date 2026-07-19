@@ -108,6 +108,7 @@ export interface Card {
   upgradeLevel?: number; // applied by player upgrades for display
   espnPlayerId?: number; // ESPN player id for a real headshot (legends/moments)
   wikipediaImageUrl?: string; // cached Wikipedia headshot, used when no espnPlayerId
+  club?: string; // iconic club, for club-based team chemistry
 }
 
 /** Apply a player-upgrade level to a card: small stat + overall bumps. */
@@ -176,6 +177,7 @@ function legendToCard(p: SoccerPlayer): Card {
     defending: p.defending,
     era: p.era,
     country: p.country,
+    club: p.club,
     espnPlayerId: p.espnPlayerId,
     wikipediaImageUrl: WIKIPEDIA_IMAGES[p.id],
   };

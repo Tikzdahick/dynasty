@@ -3,28 +3,46 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { FormationName, SoccerPosition } from "@/types";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { PlayerCard } from "@/components/soccer-myteam/PlayerCard";
 import { AnimatedNumber } from "@/components/myteam/AnimatedNumber";
 import { getOwned, getLineup, setLineup, OwnedCard } from "@/lib/store/soccer/myteam";
 import { resolveCard } from "@/lib/store/soccer/upgrades";
-import { computeTeamChemistry, CHEM_COLORS } from "@/lib/soccer-myteam/teamChemistry";
+import { computeTeamChemistry, CHEM_COLORS, CHEM_KIND_ICON } from "@/lib/soccer-myteam/teamChemistry";
 import {
   Lineup,
-  STARTER_SLOTS,
+  FORMATION_NAMES,
+  starterSlots,
+  reslotStarters,
   teamOverall,
   emptyLineup,
 } from "@/lib/soccer-myteam/lineup";
+import { formationCounts } from "@/lib/soccer/formations";
 
 type Slot = { kind: "starter" | "bench"; index: number };
 
-// group the 4-3-3 starter slots into pitch rows for display
-const ROWS: { label: string; range: [number, number] }[] = [
-  { label: "Goalkeeper", range: [0, 1] },
-  { label: "Defence", range: [1, 5] },
-  { label: "Midfield", range: [5, 8] },
-  { label: "Attack", range: [8, 11] },
-];
+// Pitch rows for the current formation. Slots are ordered GK → DEF → MID → FWD,
+// so each line is a contiguous range of the starters array.
+function rowsFor(formation: FormationName): { label: string; range: [number, number] }[] {
+  const counts = formationCounts(formation);
+  const order: { pos: SoccerPosition; label: string }[] = [
+    { pos: "GK", label: "Goalkeeper" },
+    { pos: "DEF", label: "Defence" },
+    { pos: "MID", label: "Midfield" },
+    { pos: "FWD", label: "Attack" },
+  ];
+  const rows: { label: string; range: [number, number] }[] = [];
+  let start = 0;
+  for (const { pos, label } of order) {
+    const n = counts[pos];
+    if (n > 0) {
+      rows.push({ label, range: [start, start + n] });
+      start += n;
+    }
+  }
+  return rows;
+}
 
 export default function SquadBuilderPage() {
   const [owned, setOwned] = useState<OwnedCard[]>([]);
@@ -39,6 +57,9 @@ export default function SquadBuilderPage() {
   useEffect(() => {
     setLineup(lineup);
   }, [lineup]);
+
+  const slots = starterSlots(lineup.formation);
+  const rows = rowsFor(lineup.formation);
 
   const ownedCards = useMemo(() => {
     const seen = new Set<string>();
@@ -70,9 +91,23 @@ export default function SquadBuilderPage() {
   const ovr = teamOverall(startersCards, benchCards) + chem.bonus;
   const startersFilled = startersCards.length;
 
+  const changeFormation = (f: FormationName) => {
+    setLine((prev) => {
+      if (prev.formation === f) return prev;
+      const starters = reslotStarters(
+        prev.starters,
+        prev.formation,
+        f,
+        (id) => resolveCard(id)?.position
+      );
+      return { ...prev, formation: f, starters };
+    });
+  };
+
   const assign = (slot: Slot, cardId: string) => {
     setLine((prev) => {
       const next: Lineup = {
+        ...prev,
         starters: [...prev.starters],
         bench: [...prev.bench],
       };
@@ -87,7 +122,7 @@ export default function SquadBuilderPage() {
 
   const clear = (slot: Slot) => {
     setLine((prev) => {
-      const next: Lineup = { starters: [...prev.starters], bench: [...prev.bench] };
+      const next: Lineup = { ...prev, starters: [...prev.starters], bench: [...prev.bench] };
       const key = slot.kind === "starter" ? "starters" : "bench";
       next[key][slot.index] = null;
       return next;
@@ -96,7 +131,7 @@ export default function SquadBuilderPage() {
 
   const pickerOptions = useMemo(() => {
     if (!picker) return [];
-    const pos = picker.kind === "starter" ? STARTER_SLOTS[picker.index] : null;
+    const pos = picker.kind === "starter" ? slots[picker.index] : null;
     const key = picker.kind === "starter" ? "starters" : "bench";
     return ownedCards.filter((c) => {
       const current = lineup[key][picker.index];
@@ -104,7 +139,8 @@ export default function SquadBuilderPage() {
       if (pos && c.position !== pos) return false;
       return true;
     });
-  }, [picker, ownedCards, usedIds, lineup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picker, ownedCards, usedIds, lineup, slots]);
 
   return (
     <div className="bg-grain">
@@ -116,7 +152,7 @@ export default function SquadBuilderPage() {
           </Link>
           <h1 className="mt-1 text-3xl font-black">Squad Builder</h1>
           <p className="text-sm text-white/50">
-            Pick your starting XI (4-3-3) and subs from your collection.
+            Pick a formation, then fill your XI ({lineup.formation}) and subs from your collection.
           </p>
         </div>
         <div className="flex items-center gap-4 self-start rounded-2xl border border-white/10 bg-panel/70 px-5 py-3">
@@ -146,12 +182,37 @@ export default function SquadBuilderPage() {
         </div>
       </div>
 
+      {/* formation picker */}
+      <div className="mb-6">
+        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/35">
+          Formation
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {FORMATION_NAMES.map((f) => (
+            <button
+              key={f}
+              onClick={() => changeFormation(f)}
+              className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums transition ${
+                lineup.formation === f
+                  ? "border-soccer bg-soccer/10 text-soccer"
+                  : "border-white/10 bg-panel text-white/60 hover:border-soccer/40 hover:text-white"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {chem.groups.length > 0 && (
         <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-white/50">
           <span className="text-white/40">Chemistry links:</span>
           {chem.groups.map((g) => (
-            <span key={g.team} className="rounded-full bg-emerald-400/10 px-2 py-0.5 font-semibold text-emerald-300">
-              {g.team} ×{g.count}
+            <span
+              key={`${g.kind}-${g.team}`}
+              className="rounded-full bg-emerald-400/10 px-2 py-0.5 font-semibold text-emerald-300"
+            >
+              {g.kind ? `${CHEM_KIND_ICON[g.kind]} ` : ""}{g.team} ×{g.count}
             </span>
           ))}
         </div>
@@ -170,13 +231,13 @@ export default function SquadBuilderPage() {
           {/* Starting XI, by pitch row */}
           <h2 className="mb-3 text-lg font-bold">Starting XI</h2>
           <div className="space-y-4">
-            {ROWS.map((row) => (
+            {rows.map((row) => (
               <div key={row.label}>
                 <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/35">
                   {row.label}
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {STARTER_SLOTS.slice(row.range[0], row.range[1]).map((pos, k) => {
+                  {slots.slice(row.range[0], row.range[1]).map((pos, k) => {
                     const i = row.range[0] + k;
                     return (
                       <SlotView
@@ -215,7 +276,7 @@ export default function SquadBuilderPage() {
           <PickerModal
             title={
               picker.kind === "starter"
-                ? `Choose ${STARTER_SLOTS[picker.index]}`
+                ? `Choose ${slots[picker.index]}`
                 : "Choose substitute"
             }
             options={pickerOptions}
