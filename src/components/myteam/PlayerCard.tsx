@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Card, tierForCard } from "@/lib/myteam/cards";
 
-const HEADSHOT_BASE = "https://cdn.nba.com/headshots/nba/latest/1040x760";
+// Proxied through our own origin — cdn.nba.com breaks HTTP/2 to browsers, so we
+// re-serve it server-side (see src/app/api/nba-headshot/[id]/route.ts).
+const HEADSHOT_BASE = "/api/nba-headshot";
 
 interface Props {
   card?: Card | null;
@@ -104,7 +106,7 @@ function Portrait({ card, size }: { card: Card; size: "sm" | "md" | "lg" }) {
       {showPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDN unproxied; onError drives the initials fallback
         <img
-          src={`${HEADSHOT_BASE}/${card.nbaPlayerId}.png`}
+          src={`${HEADSHOT_BASE}/${card.nbaPlayerId}`}
           alt={card.name}
           loading="lazy"
           onError={() => setFailed(true)}
