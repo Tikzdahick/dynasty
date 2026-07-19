@@ -90,24 +90,31 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
   );
 }
 
-/** Circular portrait: real ESPN headshot when the card has an espnPlayerId and
- *  the image loads, otherwise the initials medallion placeholder. */
+/** Circular portrait. Tries image sources in priority order —
+ *  ESPN headshot (espnPlayerId) → cached Wikipedia image → initials medallion —
+ *  advancing to the next on each load error, and finally to initials. */
 function Portrait({ card, size }: { card: Card; size: "sm" | "md" | "lg" }) {
-  const [failed, setFailed] = useState(false);
   const dim = size === "lg" ? "w-20" : "w-12";
-  const showPhoto = card.espnPlayerId != null && !failed;
+
+  const sources: string[] = [];
+  if (card.espnPlayerId != null) sources.push(`${HEADSHOT_BASE}/${card.espnPlayerId}.png`);
+  if (card.wikipediaImageUrl) sources.push(card.wikipediaImageUrl);
+
+  const [idx, setIdx] = useState(0);
+  const src = sources[idx];
 
   return (
     <div
       className={`flex aspect-square ${dim} items-center justify-center overflow-hidden rounded-full bg-black/30 font-black text-white/80`}
     >
-      {showPhoto ? (
-        // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDN unproxied; onError drives the initials fallback
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDNs unproxied; onError walks the source chain / falls back to initials
         <img
-          src={`${HEADSHOT_BASE}/${card.espnPlayerId}.png`}
+          key={src}
+          src={src}
           alt={card.name}
           loading="lazy"
-          onError={() => setFailed(true)}
+          onError={() => setIdx((i) => i + 1)}
           className="h-full w-full object-cover object-top"
         />
       ) : (

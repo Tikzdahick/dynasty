@@ -7,6 +7,13 @@ import { SoccerPlayer, SoccerPosition } from "@/types";
 import { SOCCER_MASTER } from "@/lib/soccer/teams";
 import { mulberry32, seedFromString } from "@/lib/rng";
 import { TEAMS } from "@/lib/soccer-myteam/teams";
+import { WIKIPEDIA_IMAGES } from "@/lib/soccer/wikipediaImages";
+
+// Player id slug (matches SoccerPlayer.id) -> used to look up the cached
+// Wikipedia headshot by name for cards that carry a name but no player id.
+function slugId(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
 
 export type Rarity = "Bronze" | "Silver" | "Gold" | "Diamond" | "Dynasty";
 
@@ -100,6 +107,7 @@ export interface Card {
   momentTitle?: string; // e.g. "Hand of God"
   upgradeLevel?: number; // applied by player upgrades for display
   espnPlayerId?: number; // ESPN player id for a real headshot (legends/moments)
+  wikipediaImageUrl?: string; // cached Wikipedia headshot, used when no espnPlayerId
 }
 
 /** Apply a player-upgrade level to a card: small stat + overall bumps. */
@@ -169,6 +177,7 @@ function legendToCard(p: SoccerPlayer): Card {
     era: p.era,
     country: p.country,
     espnPlayerId: p.espnPlayerId,
+    wikipediaImageUrl: WIKIPEDIA_IMAGES[p.id],
   };
 }
 
@@ -286,6 +295,7 @@ function buildMomentCards(): Card[] {
     moment: true,
     momentTitle: m.title,
     espnPlayerId: m.espnPlayerId,
+    wikipediaImageUrl: WIKIPEDIA_IMAGES[slugId(m.name)],
     pace: m.pace,
     shooting: m.shooting,
     passing: m.passing,
