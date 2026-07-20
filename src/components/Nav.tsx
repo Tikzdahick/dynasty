@@ -8,6 +8,7 @@ const links = [
   { href: "/", label: "Home", desktopOnly: false },
   { href: "/myteam", label: "MyTeam", desktopOnly: false },
   { href: "/leaderboard", label: "Leaderboard", desktopOnly: false },
+  { href: "/redeem", label: "🎁 Redeem", desktopOnly: false },
   { href: "/how-to-play", label: "How to Play", desktopOnly: true },
   { href: "/profile", label: "Profile", desktopOnly: false },
 ];

@@ -80,6 +80,37 @@ create table if not exists public.soccer_players (
 -- If the table already exists from an earlier run, make sure the column is present.
 alter table public.soccer_players add column if not exists espn_player_id int;
 
+-- ---------- Redeem codes ----------
+-- NOTE: the app currently uses a no-backend implementation — codes live in
+-- src/lib/redeem/codes.ts and per-browser redemptions in localStorage. These
+-- tables are the target schema for a real, shared, admin-editable code system
+-- once Supabase is configured. `reward_type` matches the in-game currency name
+-- ("coins"). Safe to run; nothing reads from these yet.
+create table if not exists public.redeem_codes (
+  code text primary key,               -- the code players type, e.g. "2040"
+  reward_amount int not null,
+  reward_type text not null default 'coins',
+  max_uses int,                        -- nullable: null = unlimited
+  times_used int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Per-user redemptions, so the same user can't redeem a code twice. Without
+-- login there's no auth.uid(); `user_ref` would hold an anonymous browser id.
+create table if not exists public.code_redemptions (
+  id uuid primary key default gen_random_uuid(),
+  code text not null references public.redeem_codes (code) on delete cascade,
+  user_ref text not null,              -- auth.uid() when logged in, else anon browser id
+  redeemed_at timestamptz not null default now(),
+  unique (code, user_ref)              -- enforces one redemption per user per code
+);
+
+-- Seed the launch code: 2040 -> 100,000 coins, unlimited, active.
+insert into public.redeem_codes (code, reward_amount, reward_type, max_uses, active)
+values ('2040', 100000, 'coins', null, true)
+on conflict (code) do nothing;
+
 -- ---------- Row Level Security ----------
 alter table public.nba_results enable row level security;
 alter table public.soccer_results enable row level security;
