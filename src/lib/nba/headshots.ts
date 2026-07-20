@@ -1,6 +1,7 @@
 import { NBA_PLAYERS } from "@/lib/nba/players";
 import { NBA_WIKIPEDIA_IMAGES } from "@/lib/nba/wikipediaImages";
-import { MANUAL_NBA_IDS, MANUAL_NBA_IMAGES } from "@/lib/nba/manualHeadshots";
+import { MANUAL_NBA_HEADSHOTS } from "@/lib/nba/manualHeadshots";
+import { LOCAL_NBA_HEADSHOTS } from "@/lib/nba/localHeadshots";
 
 // nba.com headshots break HTTP/2 in browsers, so they are proxied through our
 // own origin (see src/app/api/nba-headshot/[id]/route.ts).
@@ -17,10 +18,15 @@ const NBA_ID_BY_SLUG = new Map(
  */
 export function nbaHeadshotSources(p: { id?: string; nbaPlayerId?: number | null }): string[] {
   const out: string[] = [];
-  const nbaId =
-    p.nbaPlayerId ?? (p.id ? NBA_ID_BY_SLUG.get(p.id) ?? MANUAL_NBA_IDS[p.id] : undefined);
+  // 1. vendored local copy (self-hosted, no external dependency)
+  if (p.id && LOCAL_NBA_HEADSHOTS[p.id]) out.push(LOCAL_NBA_HEADSHOTS[p.id]);
+  // 2. manual override (corrects wrong matches / fills gaps)
+  if (p.id && MANUAL_NBA_HEADSHOTS[p.id]) out.push(MANUAL_NBA_HEADSHOTS[p.id]);
+  // 3. official nba.com headshot (proxied), by explicit id or slug back-fill
+  const nbaId = p.nbaPlayerId ?? (p.id ? NBA_ID_BY_SLUG.get(p.id) : undefined);
   if (nbaId != null) out.push(`/api/nba-headshot/${nbaId}`);
-  const wiki = p.id ? NBA_WIKIPEDIA_IMAGES[p.id] ?? MANUAL_NBA_IMAGES[p.id] : undefined;
+  // 4. Wikipedia fallback
+  const wiki = p.id ? NBA_WIKIPEDIA_IMAGES[p.id] : undefined;
   if (wiki) out.push(wiki);
-  return out;
+  return [...new Set(out)];
 }

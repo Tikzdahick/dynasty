@@ -1,19 +1,13 @@
-// Hand-sourced headshots for players the automated backfill can't cover — they
-// have no nbaPlayerId in the main roster AND no Wikipedia lead image. Kept
-// separate from the auto-generated wikipediaImages.ts so a regen won't clobber
-// them. Every entry was verified by eye (correct person, real photo not the
-// nba.com silhouette placeholder).
-
-// slug -> nba.com person id (served via the /api/nba-headshot proxy)
-export const MANUAL_NBA_IDS: Record<string, number> = {
-  "anthony-mason": 193, // nba.com headshot, Bucks-era, verified
-  "steve-smith": 120, // Hawks guard (MSU, #8), verified
-};
-
-// slug -> direct image URL (Wikimedia Commons photos not linked as the article
-// lead image, so the summary-based backfill misses them)
-export const MANUAL_NBA_IMAGES: Record<string, string> = {
-  // Kings-era photo (only free image available; he's in Kings gear)
+// Manual per-player headshot overrides — HIGHEST priority in the resolver, so
+// you can (a) correct a wrong auto-matched photo (e.g. a Wikipedia disambiguation
+// that landed on the wrong person) or (b) fill a gap where no automated source
+// has an image. Map the player's slug id to a full image URL, or to the
+// /api/nba-headshot/<id> proxy path for an nba.com headshot. If the override URL
+// itself fails to load, the resolver still falls through to the automatic
+// sources, so a bad override never breaks a card.
+export const MANUAL_NBA_HEADSHOTS: Record<string, string> = {
+  "anthony-mason": "/api/nba-headshot/193", // nba.com headshot, verified
+  "steve-smith": "/api/nba-headshot/120", // Hawks guard (MSU, #8), verified
   "bobby-jackson":
     "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Bobby_Jackson_Kings.jpg/330px-Bobby_Jackson_Kings.jpg",
 };
