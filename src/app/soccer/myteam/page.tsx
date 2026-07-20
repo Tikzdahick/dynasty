@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useFlags } from "@/lib/flags/useFlags";
+import { FlagKey } from "@/lib/flags/flags";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
@@ -31,20 +33,21 @@ import { botRivals } from "@/lib/soccer-myteam/leaderboard";
 const RIVAL_PINGED_KEY = "dynasty.sc.rivalping.shownSession";
 const DAILY_SHOWN_KEY = "dynasty.sc.dailyreward.shownSession";
 
-const HUB_LINKS = [
+const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
   { href: "/soccer/myteam/team", label: "⚽ Squad Builder" },
   { href: "/soccer/myteam/rivals", label: "⚔️ Rivals" },
   { href: "/soccer/myteam/leaderboard", label: "🏆 Leaderboard" },
-  { href: "/soccer/myteam/auction", label: "🏛 Auction House" },
+  { href: "/soccer/myteam/auction", label: "🏛 Auction House", flag: "auction_house" },
   { href: "/soccer/myteam/season", label: "🎖 Season Pass" },
   { href: "/soccer/myteam/challenges", label: "🎯 Challenges" },
-  { href: "/soccer/myteam/moments", label: "🔥 Moments" },
+  { href: "/soccer/myteam/moments", label: "🔥 Moments", flag: "moments" },
   { href: "/soccer/myteam/squads", label: "🌍 Squads" },
   { href: "/soccer/myteam/upgrades", label: "🔧 Upgrades" },
   { href: "/soccer/myteam/history", label: "📜 Pack History" },
 ];
 
 export default function SoccerMyTeamPage() {
+  const flags = useFlags();
   const [coins, setCoins] = useState(0);
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
@@ -181,7 +184,7 @@ export default function SoccerMyTeamPage() {
 
       {/* hub nav */}
       <div className="mb-6 flex flex-wrap gap-2">
-        {HUB_LINKS.map((l) => (
+        {HUB_LINKS.filter((l) => !l.flag || flags[l.flag]).map((l) => (
           <Link
             key={l.href}
             href={l.href}

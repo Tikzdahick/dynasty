@@ -27,25 +27,28 @@ import { onPackOpened } from "@/lib/myteam/events";
 import { pushNotification } from "@/lib/store/notifications";
 import { consumeNewMomentDrop } from "@/lib/myteam/moments";
 import { botRivals } from "@/lib/myteam/leaderboard";
+import { useFlags } from "@/lib/flags/useFlags";
+import { FlagKey } from "@/lib/flags/flags";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
 
 const DAILY_SHOWN_KEY = "dynasty.dailyreward.shownSession";
 
-const HUB_LINKS = [
+const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
   { href: "/myteam/team", label: "🏀 Team Builder" },
   { href: "/myteam/rivals", label: "⚔️ Rivals" },
   { href: "/myteam/leaderboard", label: "🏆 Leaderboard" },
-  { href: "/myteam/auction", label: "🏛 Auction House" },
+  { href: "/myteam/auction", label: "🏛 Auction House", flag: "auction_house" },
   { href: "/myteam/season", label: "🎖 Season Pass" },
   { href: "/myteam/challenges", label: "🎯 Challenges" },
-  { href: "/myteam/moments", label: "🔥 Moments" },
+  { href: "/myteam/moments", label: "🔥 Moments", flag: "moments" },
   { href: "/myteam/squads", label: "🌍 Squads" },
   { href: "/myteam/upgrades", label: "🔧 Upgrades" },
   { href: "/myteam/history", label: "📜 Pack History" },
 ];
 
 export default function MyTeamPage() {
+  const flags = useFlags();
   const [coins, setCoins] = useState(0);
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
@@ -189,7 +192,7 @@ export default function MyTeamPage() {
 
       {/* hub nav */}
       <div className="mb-6 flex flex-wrap gap-2">
-        {HUB_LINKS.map((l) => (
+        {HUB_LINKS.filter((l) => !l.flag || flags[l.flag]).map((l) => (
           <Link
             key={l.href}
             href={l.href}
