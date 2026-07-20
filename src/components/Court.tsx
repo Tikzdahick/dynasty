@@ -1,6 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Portrait } from "@/components/Portrait";
+import { nbaHeadshotSources } from "@/lib/nba/headshots";
+import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 
 export interface SlotDef {
   id: string;
@@ -145,7 +148,19 @@ function SlotNode<P extends CourtPlayer>({
             : "border-dashed border-white/40 bg-black/30 text-white/55"
         }`}
       >
-        {player ? (locked ? "🔒" : initials(player.name)) : s.position}
+        {player ? (
+          locked ? (
+            "🔒"
+          ) : (
+            <Portrait
+              sources={variant === "nba" ? nbaHeadshotSources(player) : soccerHeadshotSources(player)}
+              name={player.name}
+              className="h-full w-full rounded-full"
+            />
+          )
+        ) : (
+          s.position
+        )}
       </div>
       <span className="mt-1 max-w-[84px] truncate rounded bg-black/60 px-1 text-[10px] font-medium text-white">
         {player ? lastName(player.name) : s.label}
@@ -187,10 +202,6 @@ function CourtMarks() {
   );
 }
 
-function initials(name: string): string {
-  const parts = name.split(" ");
-  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
-}
 function lastName(name: string): string {
   const parts = name.split(" ");
   return parts.length > 1 ? parts[parts.length - 1] : name;

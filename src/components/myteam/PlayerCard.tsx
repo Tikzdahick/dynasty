@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Card, tierForCard } from "@/lib/myteam/cards";
-
-// Proxied through our own origin — cdn.nba.com breaks HTTP/2 to browsers, so we
-// re-serve it server-side (see src/app/api/nba-headshot/[id]/route.ts).
-const HEADSHOT_BASE = "/api/nba-headshot";
+import { Portrait } from "@/components/Portrait";
+import { nbaHeadshotSources } from "@/lib/nba/headshots";
 
 interface Props {
   card?: Card | null;
@@ -19,15 +16,6 @@ const SIZES = {
   md: { w: "w-full", pad: "p-3", ovr: "text-3xl", name: "text-sm", stat: "text-[11px]" },
   lg: { w: "w-56", pad: "p-4", ovr: "text-5xl", name: "text-lg", stat: "text-sm" },
 };
-
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export function PlayerCard({ card, size = "md", className = "", onClick }: Props) {
   // guard: never try to render a card that hasn't loaded / resolved
@@ -67,7 +55,11 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
 
       {/* portrait: real NBA headshot when available, initials medallion otherwise */}
       <div className="flex justify-center py-1">
-        <Portrait card={card} size={size} />
+        <Portrait
+          sources={nbaHeadshotSources(card)}
+          name={card.name}
+          className={`aspect-square ${size === "lg" ? "w-20" : "w-12"} rounded-full bg-black/30 font-black text-white/80`}
+        />
       </div>
 
       {/* name */}
@@ -89,33 +81,6 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
         <Stat label="DEF" value={card.defense} />
       </div>
     </Tag>
-  );
-}
-
-/** Circular portrait: real NBA headshot when the card has an nbaPlayerId and the
- *  image loads, otherwise the initials medallion placeholder. */
-function Portrait({ card, size }: { card: Card; size: "sm" | "md" | "lg" }) {
-  const [failed, setFailed] = useState(false);
-  const dim = size === "lg" ? "w-20" : "w-12";
-  const showPhoto = card.nbaPlayerId != null && !failed;
-
-  return (
-    <div
-      className={`flex aspect-square ${dim} items-center justify-center overflow-hidden rounded-full bg-black/30 font-black text-white/80`}
-    >
-      {showPhoto ? (
-        // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDN unproxied; onError drives the initials fallback
-        <img
-          src={`${HEADSHOT_BASE}/${card.nbaPlayerId}`}
-          alt={card.name}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover object-top"
-        />
-      ) : (
-        initials(card.name)
-      )}
-    </div>
   );
 }
 

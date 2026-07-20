@@ -1,26 +1,40 @@
 // One-time (re-runnable) script: resolve a Wikipedia lead-image thumbnail for
-// every real soccer player in the card pool — the roster (players.ts) AND the
-// iconic national-team squads (teams.ts) — and cache the URLs into
-// src/lib/soccer/wikipediaImages.ts, so the app never hits Wikipedia at runtime.
+// every real player in the card pool — for BOTH sports — reading the roster and
+// the iconic-team squads, and caching the URLs into per-sport modules so the app
+// never hits Wikipedia at runtime.
 //
-//   node scripts/fetch-wiki-images.mjs
+//   node scripts/fetch-wiki-images.mjs            # both sports
+//   node scripts/fetch-wiki-images.mjs soccer     # one sport
 //
-// The title-override map is single-sourced from wikiTitleOverrides.json (shared
-// with src/lib/soccer/wikipedia.ts). The fetch logic below intentionally mirrors
-// getWikipediaImage() in that file — kept in sync by hand since this plain-Node
-// script can't import the TS module.
+// Each sport's title-override map is single-sourced from its wikiTitleOverrides
+// .json. The fetch logic mirrors getWikipediaImage() in lib/soccer/wikipedia.ts
+// — kept in sync by hand since this plain-Node script can't import the TS module.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const PLAYERS_TS = join(root, "src/lib/soccer/players.ts");
-const TEAMS_TS = join(root, "src/lib/soccer/teams.ts"); // SOCCER_ICONIC squads
-const OVERRIDES_JSON = join(root, "src/lib/soccer/wikiTitleOverrides.json");
-const OUT_TS = join(root, "src/lib/soccer/wikipediaImages.ts");
+const p = (rel) => join(root, rel);
 
-const overrides = JSON.parse(readFileSync(OVERRIDES_JSON, "utf8"));
+// Every real-player data source per sport (generated commons are built in code,
+// not data, so parsing `name: "..."` yields exactly the real cards in the pool).
+const DATASETS = {
+  soccer: {
+    sources: ["src/lib/soccer/players.ts", "src/lib/soccer/teams.ts"],
+    overrides: "src/lib/soccer/wikiTitleOverrides.json",
+    out: "src/lib/soccer/wikipediaImages.ts",
+    exportName: "WIKIPEDIA_IMAGES",
+    comment: "soccer player id (slug)",
+  },
+  nba: {
+    sources: ["src/lib/nba/players.ts", "src/lib/nba/teams.ts"],
+    overrides: "src/lib/nba/wikiTitleOverrides.json",
+    out: "src/lib/nba/wikipediaImages.ts",
+    exportName: "NBA_WIKIPEDIA_IMAGES",
+    comment: "NBA player id (slug)",
+  },
+};
 
 // id slug — must match the card id generation used across the app: players.ts
 // uses name.toLowerCase().replace(/[^a-z0-9]+/g,"-"); the iconic squads use
@@ -28,11 +42,8 @@ const overrides = JSON.parse(readFileSync(OVERRIDES_JSON, "utf8"));
 const slugId = (name) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-// Parse `name: "..."` entries straight from a source file so this stays in sync.
-// Both players.ts and teams.ts list only real players this way (generated commons
-// are built in code, not data), so this yields exactly the real cards in the pool.
 function readNames(file) {
-  const src = readFileSync(file, "utf8");
+  const src = readFileSync(p(file), "utf8");
   const names = [];
   const re = /name:\s*"([^"]+)"/g;
   let m;
@@ -40,30 +51,31 @@ function readNames(file) {
   return names;
 }
 
-// Unique real players across the roster + iconic squads, deduped by card id.
-function collectPlayers() {
+// Unique real players across a sport's sources, deduped by card id.
+function collectPlayers(sources) {
   const byId = new Map(); // slugId -> name (first spelling wins)
-  for (const name of [...readNames(PLAYERS_TS), ...readNames(TEAMS_TS)]) {
-    const id = slugId(name);
-    if (!byId.has(id)) byId.set(id, name);
+  for (const file of sources) {
+    for (const name of readNames(file)) {
+      const id = slugId(name);
+      if (!byId.has(id)) byId.set(id, name);
+    }
   }
   return [...byId.entries()]; // [ [id, name], ... ]
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function getWikipediaImage(playerName, { retries = 4 } = {}) {
+async function getWikipediaImage(playerName, overrides, { retries = 4 } = {}) {
   const title = overrides[playerName] ?? playerName.replace(/ /g, "_");
   const endpoint = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(endpoint, {
         headers: {
-          "User-Agent": "DynastyGame/1.0 (soccer player card headshots)",
+          "User-Agent": "DynastyGame/1.0 (player card headshots)",
           accept: "application/json",
         },
       });
-      // Rate limited — respect Retry-After (or back off) and try again.
       if (res.status === 429 && attempt < retries) {
         const retryAfter = Number(res.headers.get("retry-after"));
         const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1500 * (attempt + 1);
@@ -84,50 +96,52 @@ async function getWikipediaImage(playerName, { retries = 4 } = {}) {
   return { url: null, status: 429 };
 }
 
-async function main() {
-  const players = collectPlayers(); // [ [id, name], ... ]
-  console.log(
-    `Resolving Wikipedia images for ${players.length} unique players (roster + iconic squads)...\n`
-  );
+async function runDataset(label, cfg) {
+  const overrides = JSON.parse(readFileSync(p(cfg.overrides), "utf8"));
+  const players = collectPlayers(cfg.sources);
+  console.log(`\n[${label}] Resolving Wikipedia images for ${players.length} unique players...`);
 
   const map = {};
-  const resolved = [];
   const misses = [];
-
   for (const [id, name] of players) {
-    const { url, status } = await getWikipediaImage(name);
-    if (url) {
-      map[id] = url;
-      resolved.push(name);
-    } else {
-      misses.push({ name, status });
-    }
-    // be polite to the Wikipedia API
-    await sleep(500);
+    const { url, status } = await getWikipediaImage(name, overrides);
+    if (url) map[id] = url;
+    else misses.push({ name, status });
+    await sleep(500); // be polite to the Wikipedia API
   }
 
-  // Write the generated cache module (sorted keys for stable diffs).
   const entries = Object.keys(map)
     .sort()
     .map((k) => `  ${JSON.stringify(k)}: ${JSON.stringify(map[k])},`)
     .join("\n");
   const out = `// AUTO-GENERATED by scripts/fetch-wiki-images.mjs — do not edit by hand.
-// Maps soccer player id (slug) -> Wikipedia lead-image thumbnail URL.
+// Maps ${cfg.comment} -> Wikipedia lead-image thumbnail URL.
 // Regenerate with: node scripts/fetch-wiki-images.mjs
-export const WIKIPEDIA_IMAGES: Record<string, string> = {
+export const ${cfg.exportName}: Record<string, string> = {
 ${entries}
 };
 `;
-  writeFileSync(OUT_TS, out);
+  writeFileSync(p(cfg.out), out);
 
-  // Report
-  console.log(`✅ Resolved: ${resolved.length}`);
-  console.log(`❌ Null (need override / no image): ${misses.length}\n`);
+  console.log(`[${label}] ✅ Resolved: ${Object.keys(map).length}   ❌ Null: ${misses.length}`);
   if (misses.length) {
-    console.log("Misses:");
-    for (const { name, status } of misses) console.log(`  - ${name}  (${status})`);
+    console.log(`[${label}] Misses (need override / no image):`);
+    for (const { name, status } of misses) console.log(`    - ${name}  (${status})`);
   }
-  console.log(`\nWrote ${OUT_TS}`);
+  console.log(`[${label}] Wrote ${cfg.out}`);
+  return { resolved: Object.keys(map).length, misses };
+}
+
+async function main() {
+  const only = process.argv[2];
+  const labels = only ? [only] : Object.keys(DATASETS);
+  for (const label of labels) {
+    if (!DATASETS[label]) {
+      console.error(`Unknown dataset "${label}". Options: ${Object.keys(DATASETS).join(", ")}`);
+      process.exit(1);
+    }
+    await runDataset(label, DATASETS[label]);
+  }
 }
 
 main();

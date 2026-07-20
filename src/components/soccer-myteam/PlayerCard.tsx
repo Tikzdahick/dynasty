@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Card, tierForCard } from "@/lib/soccer-myteam/cards";
-
-const HEADSHOT_BASE = "https://a.espncdn.com/i/headshots/soccer/players/full";
+import { Portrait } from "@/components/Portrait";
+import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 
 interface Props {
   card?: Card | null;
@@ -17,15 +16,6 @@ const SIZES = {
   md: { w: "w-full", pad: "p-3", ovr: "text-3xl", name: "text-sm", stat: "text-[11px]" },
   lg: { w: "w-56", pad: "p-4", ovr: "text-5xl", name: "text-lg", stat: "text-sm" },
 };
-
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export function PlayerCard({ card, size = "md", className = "", onClick }: Props) {
   if (!card) return null;
@@ -64,7 +54,11 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
 
       {/* portrait: real ESPN headshot when available, initials medallion otherwise */}
       <div className="flex justify-center py-1">
-        <Portrait card={card} size={size} />
+        <Portrait
+          sources={soccerHeadshotSources(card)}
+          name={card.name}
+          className={`aspect-square ${size === "lg" ? "w-20" : "w-12"} rounded-full bg-black/30 font-black text-white/80`}
+        />
       </div>
 
       {/* name */}
@@ -87,40 +81,6 @@ export function PlayerCard({ card, size = "md", className = "", onClick }: Props
         <Stat label="DEF" value={card.defending} />
       </div>
     </Tag>
-  );
-}
-
-/** Circular portrait. Tries image sources in priority order —
- *  ESPN headshot (espnPlayerId) → cached Wikipedia image → initials medallion —
- *  advancing to the next on each load error, and finally to initials. */
-function Portrait({ card, size }: { card: Card; size: "sm" | "md" | "lg" }) {
-  const dim = size === "lg" ? "w-20" : "w-12";
-
-  const sources: string[] = [];
-  if (card.espnPlayerId != null) sources.push(`${HEADSHOT_BASE}/${card.espnPlayerId}.png`);
-  if (card.wikipediaImageUrl) sources.push(card.wikipediaImageUrl);
-
-  const [idx, setIdx] = useState(0);
-  const src = sources[idx];
-
-  return (
-    <div
-      className={`flex aspect-square ${dim} items-center justify-center overflow-hidden rounded-full bg-black/30 font-black text-white/80`}
-    >
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- plain img keeps the CDNs unproxied; onError walks the source chain / falls back to initials
-        <img
-          key={src}
-          src={src}
-          alt={card.name}
-          loading="lazy"
-          onError={() => setIdx((i) => i + 1)}
-          className="h-full w-full object-cover object-top"
-        />
-      ) : (
-        initials(card.name)
-      )}
-    </div>
   );
 }
 

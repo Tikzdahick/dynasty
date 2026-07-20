@@ -2,6 +2,9 @@
 
 import { motion } from "framer-motion";
 import { SlotDef, CourtPlayer } from "@/components/Court";
+import { Portrait } from "@/components/Portrait";
+import { nbaHeadshotSources } from "@/lib/nba/headshots";
+import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 import { Chemistry } from "@/lib/chemistry";
 
 interface Props<P extends CourtPlayer> {
@@ -93,15 +96,15 @@ export function PreSimSummary<P extends CourtPlayer>({
               className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
               style={{ left: `${s.x}%`, top: `${100 - s.y}%` }}
             >
-              <div
-                className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white ${
+              <Portrait
+                sources={variant === "nba" ? nbaHeadshotSources(p) : soccerHeadshotSources(p)}
+                name={p.name}
+                className={`h-9 w-9 rounded-full border-2 text-[9px] font-bold text-white ${
                   pos.has(p.id) && chemistry.groups.some((g) => g.playerIds.includes(p.id))
                     ? "border-emerald-400 bg-emerald-400/20"
                     : "border-white/30 bg-black/40"
                 }`}
-              >
-                {initials(p.name)}
-              </div>
+              />
               <span className="mt-0.5 max-w-[72px] truncate rounded bg-black/60 px-1 text-[9px] text-white">
                 {lastName(p.name)}
               </span>
@@ -171,10 +174,6 @@ export function PreSimSummary<P extends CourtPlayer>({
   );
 }
 
-function initials(name: string): string {
-  const parts = name.split(" ");
-  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
-}
 function lastName(name: string): string {
   const parts = name.split(" ");
   return parts.length > 1 ? parts[parts.length - 1] : name;

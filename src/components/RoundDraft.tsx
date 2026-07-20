@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import { Decade, DECADES } from "@/types";
 import { Deck } from "@/lib/draft/candidates";
 import { CourtView, BenchRow, SlotDef, CourtPlayer } from "@/components/Court";
+import { Portrait } from "@/components/Portrait";
+import { nbaHeadshotSources } from "@/lib/nba/headshots";
+import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 import { mulberry32, dailySeed } from "@/lib/rng";
 
 export type DraftMode = "classic" | "iq" | "daily" | "team";
@@ -676,9 +679,11 @@ function CandidateCard({
       } ${ghost ? "ghost-shimmer" : ""}`}
     >
       <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-white/15 to-white/5 text-[10px] font-black text-white/80">
-          {initials(p.name)}
-        </div>
+        <Portrait
+          sources={accent === "nba" ? nbaHeadshotSources(p) : soccerHeadshotSources(p)}
+          name={p.name}
+          className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-white/15 to-white/5 text-[10px] font-black text-white/80"
+        />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold leading-tight">{p.name}</div>
           {revealed && (
@@ -737,11 +742,6 @@ function SkipBtn({ label, disabled, onClick }: { label: string; disabled: boolea
       {label}
     </button>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.split(" ");
-  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
 }
 
 function shuffle<X>(arr: X[], rng: () => number): X[] {
