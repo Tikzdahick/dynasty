@@ -16,6 +16,9 @@ export function Nav() {
   const pathname = usePathname();
   const { user, displayName } = useAuth();
 
+  // The admin area is a standalone console — hide the game nav there.
+  if (pathname?.startsWith("/admin")) return null;
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-ink/80 backdrop-blur-xl">
       <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
