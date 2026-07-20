@@ -7,6 +7,8 @@ import { useFlags } from "@/lib/flags/useFlags";
 import { FlagKey } from "@/lib/flags/flags";
 import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
+import { Tutorial } from "@/components/onboarding/Tutorial";
+import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
@@ -59,6 +61,7 @@ export default function SoccerMyTeamPage() {
   const [showDaily, setShowDaily] = useState(false);
   const [dailyClaimable, setDailyClaimable] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     ensureInit();
@@ -114,12 +117,14 @@ export default function SoccerMyTeamPage() {
   }
 
   function finishOpening() {
+    const wasStarter = openingSource === "Starter Pack";
     if (opening) {
       addOwned(opening.map((c) => c.id));
       onPackOpened(openingSource, opening); // XP + challenges + pack history
     }
     setOpening(null);
     refresh();
+    if (wasStarter && !hasSeenTutorial()) setShowTutorial(true);
   }
 
   function onDailyClaimed() {
@@ -142,6 +147,13 @@ export default function SoccerMyTeamPage() {
   return (
     <div className="bg-grain">
       {showOnboard && <StarterPackOnboarding onPick={chooseTeam} />}
+      <Tutorial
+        open={showTutorial}
+        onClose={() => {
+          markTutorialSeen();
+          setShowTutorial(false);
+        }}
+      />
       {opening && <PackOpening cards={opening} onDone={finishOpening} />}
       {showDaily && (
         <DailyRewardModal onClose={() => setShowDaily(false)} onClaimed={onDailyClaimed} />

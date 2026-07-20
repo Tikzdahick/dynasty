@@ -31,6 +31,8 @@ import { useFlags } from "@/lib/flags/useFlags";
 import { FlagKey } from "@/lib/flags/flags";
 import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
+import { Tutorial } from "@/components/onboarding/Tutorial";
+import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
 
@@ -60,6 +62,7 @@ export default function MyTeamPage() {
   const [showDaily, setShowDaily] = useState(false);
   const [dailyClaimable, setDailyClaimable] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     ensureInit();
@@ -120,12 +123,15 @@ export default function MyTeamPage() {
   }
 
   function finishOpening() {
+    const wasStarter = openingSource === "Starter Pack";
     if (opening) {
       addOwned(opening.map((c) => c.id));
       onPackOpened(openingSource, opening); // XP + challenges + pack history
     }
     setOpening(null);
     refresh();
+    // first-time players: run the walkthrough right after the Starter Pack reveal
+    if (wasStarter && !hasSeenTutorial()) setShowTutorial(true);
   }
 
   function onDailyClaimed() {
@@ -150,6 +156,13 @@ export default function MyTeamPage() {
   return (
     <div className="bg-grain">
       {showOnboard && <StarterPackOnboarding onPick={chooseTeam} />}
+      <Tutorial
+        open={showTutorial}
+        onClose={() => {
+          markTutorialSeen();
+          setShowTutorial(false);
+        }}
+      />
       {opening && <PackOpening cards={opening} onDone={finishOpening} />}
       {showDaily && (
         <DailyRewardModal onClose={() => setShowDaily(false)} onClaimed={onDailyClaimed} />

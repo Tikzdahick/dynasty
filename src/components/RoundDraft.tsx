@@ -6,6 +6,7 @@ import { Decade, DECADES } from "@/types";
 import { Deck } from "@/lib/draft/candidates";
 import { CourtView, BenchRow, SlotDef, CourtPlayer } from "@/components/Court";
 import { Portrait } from "@/components/Portrait";
+import { StatTooltip } from "@/components/StatTooltip";
 import { nbaHeadshotSources } from "@/lib/nba/headshots";
 import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 import { mulberry32, dailySeed } from "@/lib/rng";
@@ -704,7 +705,7 @@ function CandidateCard({
         <div className="mt-2 space-y-1">
           {dispBars.map((b) => (
             <div key={b.label} className="flex items-center gap-1.5">
-              <span className="w-7 text-[8px] font-semibold text-white/40">{b.label}</span>
+              <StatTooltip abbr={b.label} className="w-7 text-[8px] font-semibold uppercase text-white/40" />
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                 <div
                   className={`h-full rounded-full bg-gradient-to-r ${barColor}`}

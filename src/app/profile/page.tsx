@@ -7,9 +7,11 @@ import { getLocalNba, getLocalSoccer } from "@/lib/store/local";
 import { currentStreak, getStreak, getUnlocked } from "@/lib/store/stats";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { NbaLeaderboardEntry, SoccerLeaderboardEntry } from "@/types";
+import { Tutorial } from "@/components/onboarding/Tutorial";
 
 export default function ProfilePage() {
   const { user, displayName, configured, signOut } = useAuth();
+  const [showTutorial, setShowTutorial] = useState(false);
   const [nba, setNba] = useState<NbaLeaderboardEntry[]>([]);
   const [soccer, setSoccer] = useState<SoccerLeaderboardEntry[]>([]);
   const [streak, setStreak] = useState(0);
@@ -65,6 +67,22 @@ export default function ProfilePage() {
           )}
         </div>
       )}
+
+      {/* settings */}
+      <div className="card mb-6 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white/80">New here, or need a refresher?</p>
+          <p className="text-xs text-white/40">Replay the walkthrough covering packs, team building, chemistry, and coins.</p>
+        </div>
+        <button
+          onClick={() => setShowTutorial(true)}
+          className="btn-ghost whitespace-nowrap text-sm"
+        >
+          Replay tutorial
+        </button>
+      </div>
+
+      <Tutorial open={showTutorial} onClose={() => setShowTutorial(false)} />
 
       {/* quick stats */}
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">

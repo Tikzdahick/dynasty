@@ -2,6 +2,7 @@
 
 import { Card, tierForCard } from "@/lib/soccer-myteam/cards";
 import { Portrait } from "@/components/Portrait";
+import { StatTooltip } from "@/components/StatTooltip";
 import { soccerHeadshotSources } from "@/lib/soccer/headshots";
 
 interface Props {
@@ -88,7 +89,9 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-black/40 px-1 py-1 text-center">
       <div className="tabular-nums text-white">{value}</div>
-      <div className="text-[8px] uppercase tracking-wide text-white/45">{label}</div>
+      <div className="text-[8px] uppercase tracking-wide text-white/45">
+        <StatTooltip abbr={label} />
+      </div>
     </div>
   );
 }
