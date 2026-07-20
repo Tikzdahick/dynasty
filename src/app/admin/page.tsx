@@ -13,8 +13,8 @@ type Section = {
 // The dashboard shell. Each section is added incrementally.
 const SECTIONS: Section[] = [
   { title: "Feature Flags", icon: "🚩", desc: "Toggle features globally or for your own browser before rolling out.", status: "live", href: "/admin/flags" },
+  { title: "Pack Odds", icon: "🎴", desc: "View and adjust pull-rate percentages per rarity, per pack type.", status: "live", href: "/admin/odds" },
   { title: "SBC Management", icon: "🧩", desc: "Create/edit/delete Squad Building Challenges — requirements, rewards, active dates.", status: "planned" },
-  { title: "Pack Odds", icon: "🎴", desc: "View and adjust pull-rate percentages per rarity, per pack type.", status: "planned" },
   { title: "Auction Moderation", icon: "🔨", desc: "View listings, cancel/remove any, flag or ban users.", status: "planned" },
   { title: "Error Logs", icon: "🐛", desc: "Filterable list of unhandled errors with timestamp and context.", status: "planned" },
   { title: "Economy", icon: "📈", desc: "Coins in circulation, avg pack price, avg sale price; earned vs spent per day.", status: "planned" },

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useFlags } from "@/lib/flags/useFlags";
 import { FlagKey } from "@/lib/flags/flags";
+import { usePackOdds } from "@/lib/admin/usePackOdds";
+import { applyPackOverride } from "@/lib/admin/packOdds";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
@@ -48,6 +50,7 @@ const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
 
 export default function SoccerMyTeamPage() {
   const flags = useFlags();
+  const packOdds = usePackOdds();
   const [coins, setCoins] = useState(0);
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
@@ -107,7 +110,7 @@ export default function SoccerMyTeamPage() {
     }
     setCoins(bal);
     setOpeningSource(pack.name);
-    setOpening(openPack(pack));
+    setOpening(openPack(applyPackOverride("soccer", pack, packOdds)));
   }
 
   function finishOpening() {

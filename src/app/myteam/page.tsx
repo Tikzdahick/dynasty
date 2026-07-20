@@ -29,6 +29,8 @@ import { consumeNewMomentDrop } from "@/lib/myteam/moments";
 import { botRivals } from "@/lib/myteam/leaderboard";
 import { useFlags } from "@/lib/flags/useFlags";
 import { FlagKey } from "@/lib/flags/flags";
+import { usePackOdds } from "@/lib/admin/usePackOdds";
+import { applyPackOverride } from "@/lib/admin/packOdds";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
 
@@ -49,6 +51,7 @@ const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
 
 export default function MyTeamPage() {
   const flags = useFlags();
+  const packOdds = usePackOdds();
   const [coins, setCoins] = useState(0);
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
@@ -113,7 +116,7 @@ export default function MyTeamPage() {
     }
     setCoins(bal);
     setOpeningSource(pack.name);
-    setOpening(openPack(pack));
+    setOpening(openPack(applyPackOverride("nba", pack, packOdds)));
   }
 
   function finishOpening() {
