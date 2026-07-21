@@ -187,6 +187,53 @@ export async function spendServer(sport: Sport, amount: number): Promise<number 
   return data;
 }
 
+/** A lightweight, non-identifying browser fingerprint for duplicate-account
+ *  flagging (userAgent + screen + timezone + language, hashed). Not robust — a
+ *  coarse signal only, per the "basic flagging" scope. */
+function fingerprint(): string {
+  if (typeof navigator === "undefined") return "";
+  try {
+    const parts = [
+      navigator.userAgent,
+      typeof screen !== "undefined" ? `${screen.width}x${screen.height}x${screen.colorDepth}` : "",
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+      navigator.language,
+    ];
+    const s = parts.join("|");
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  } catch {
+    return "";
+  }
+}
+
+/** Report this device's IP (server-read) + fingerprint once, for duplicate-account
+ *  flagging. Best-effort and deduped per device via a localStorage flag; the
+ *  server also dedupes per user, so calling it on any login is safe. */
+export async function logSignup(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const FLAG = "dynasty.signuplogged";
+  if (localStorage.getItem(FLAG)) return;
+  const sb = getSupabase();
+  if (!sb) return;
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return;
+  localStorage.setItem(FLAG, "1"); // set first so we don't double-fire
+  try {
+    await fetch("/api/signup-log", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fingerprint: fingerprint() }),
+    });
+  } catch {
+    /* best effort — never block the user */
+  }
+}
+
 /** Call the server-authoritative card-grant route (/api/grant). The server
  *  picks the cards and couples the grant to its cost/claim; the client only
  *  displays the result. Returns { cardIds, balance? } or { error }. */

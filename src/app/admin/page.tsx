@@ -15,6 +15,7 @@ const SECTIONS: Section[] = [
   { title: "Feature Flags", icon: "🚩", desc: "Toggle features globally or for your own browser before rolling out.", status: "live", href: "/admin/flags" },
   { title: "Pack Odds", icon: "🎴", desc: "View and adjust pull-rate percentages per rarity, per pack type.", status: "live", href: "/admin/odds" },
   { title: "Redeem Codes", icon: "🎟️", desc: "Manage codes players redeem for coins — activate/deactivate and add test codes.", status: "live", href: "/admin/redeem" },
+  { title: "Duplicate Signups", icon: "🕵️", desc: "Accounts sharing an IP or fingerprint in a short window — flagged for review, no auto-ban.", status: "live", href: "/admin/signups" },
   { title: "SBC Management", icon: "🧩", desc: "Create/edit/delete Squad Building Challenges — requirements, rewards, active dates.", status: "planned" },
   { title: "Auction Moderation", icon: "🔨", desc: "View listings, cancel/remove any, flag or ban users.", status: "planned" },
   { title: "Error Logs", icon: "🐛", desc: "Filterable list of unhandled errors with timestamp and context.", status: "planned" },
