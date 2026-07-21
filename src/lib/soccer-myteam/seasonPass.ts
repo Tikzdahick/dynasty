@@ -2,6 +2,8 @@
 // games, opening packs, and completing challenges (see events.ts). Tiers unlock
 // at XP thresholds and are claimed manually for coins / packs / exclusive cards.
 import { Reward, grantReward, GrantResult } from "@/lib/soccer-myteam/rewards";
+import { getCoins } from "@/lib/store/soccer/myteam";
+import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
 
 const XP_KEY = "dynasty.sc.season.xp";
 const CLAIMED_KEY = "dynasty.sc.season.claimed";
@@ -68,12 +70,20 @@ export function claimableTiers(xp = getXp()): number[] {
   return SEASON_TIERS.filter((t) => xp >= t.xp && !claimed.has(t.tier)).map((t) => t.tier);
 }
 
-export function claimTier(tierNum: number): GrantResult | null {
+export async function claimTier(tierNum: number): Promise<GrantResult | null> {
   const tier = SEASON_TIERS.find((t) => t.tier === tierNum);
   if (!tier || getXp() < tier.xp) return null;
   const claimed = getClaimedTiers();
   if (claimed.includes(tierNum)) return null;
-  const res = grantReward(tier.reward);
+
+  let res: GrantResult;
+  if (tier.reward.kind === "coins" && cloudUserId()) {
+    const coins = await claimRewardServer("soccer", "season", String(tierNum), "");
+    if (coins == null) return null;
+    res = { reward: tier.reward, coins, cards: [], newBalance: getCoins() };
+  } else {
+    res = grantReward(tier.reward);
+  }
   claimed.push(tierNum);
   if (typeof window !== "undefined") localStorage.setItem(CLAIMED_KEY, JSON.stringify(claimed));
   return res;

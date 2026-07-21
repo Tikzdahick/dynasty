@@ -5,6 +5,8 @@
 import { Reward, grantReward, GrantResult } from "@/lib/myteam/rewards";
 import { addXp } from "@/lib/myteam/seasonPass";
 import { mulberry32, seedFromString } from "@/lib/rng";
+import { getCoins } from "@/lib/store/myteam";
+import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
 
 export type Metric =
   | "gamesPlayed"
@@ -134,14 +136,28 @@ export function getChallenges(): { daily: ChallengeState[]; weekly: ChallengeSta
   };
 }
 
-export function claimChallenge(id: string, scope: "daily" | "weekly"): GrantResult | null {
+export async function claimChallenge(
+  id: string,
+  scope: "daily" | "weekly"
+): Promise<GrantResult | null> {
   const defs = scope === "daily" ? activeDailyDefs() : activeWeeklyDefs();
   const def = defs.find((d) => d.id === id);
   if (!def) return null;
   const storageKey = scope === "daily" ? DAILY_KEY : WEEKLY_KEY;
-  const period = readPeriod(storageKey, scope === "daily" ? dayKey() : weekKey());
+  const periodKey = scope === "daily" ? dayKey() : weekKey();
+  const period = readPeriod(storageKey, periodKey);
   if ((period.prog[id] ?? 0) < def.goal || period.claimed.includes(id)) return null;
-  const res = grantReward(def.reward);
+
+  let res: GrantResult;
+  if (def.reward.kind === "coins" && cloudUserId()) {
+    // logged in → server owns the amount + dedups the claim
+    const coins = await claimRewardServer("nba", "challenge", id, periodKey);
+    if (coins == null) return null; // server rejected (already claimed / error)
+    res = { reward: def.reward, coins, cards: [], newBalance: getCoins() };
+  } else {
+    // guest coins, or a pack/card reward (cards generated locally for now)
+    res = grantReward(def.reward);
+  }
   addXp(def.xp);
   period.claimed.push(id);
   writePeriod(storageKey, period);

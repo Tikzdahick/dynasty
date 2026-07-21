@@ -222,6 +222,29 @@ export async function spendServer(sport: Sport, amount: number): Promise<number 
   return data;
 }
 
+/** Claim a coin reward (challenge / season tier) server-side. The server owns
+ *  the amount (reward_defs) and dedups the claim (reward_claims), so a client
+ *  can't inflate or replay it. Returns the credited coins, or null if rejected
+ *  (already claimed / unknown reward / not logged in). Resyncs the balance. */
+export async function claimRewardServer(
+  sport: Sport,
+  source: string,
+  ref: string,
+  period = ""
+): Promise<number | null> {
+  const sb = getSupabase();
+  if (!sb || !cloudUserId()) return null;
+  const { data, error } = await sb.rpc("claim_reward", {
+    p_source: source,
+    p_ref: ref,
+    p_sport: sport,
+    p_period: period,
+  });
+  if (error || typeof data !== "number") return null;
+  await resync(sport); // pull the server-credited balance into the cache
+  return data;
+}
+
 export interface DailyClaim {
   day: number;
   streak: number;

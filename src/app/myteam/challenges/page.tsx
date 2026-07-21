@@ -24,8 +24,8 @@ export default function ChallengesPage() {
   };
   useEffect(refresh, []);
 
-  const claim = (c: ChallengeState) => {
-    const res = claimChallenge(c.id, c.scope);
+  const claim = async (c: ChallengeState) => {
+    const res = await claimChallenge(c.id, c.scope);
     if (!res) return;
     if (res.cards.length) setReveal(res.cards);
     else {

@@ -36,8 +36,8 @@ export default function SeasonPassPage() {
     ? Math.round(((xp - prevXp) / (nextTier.xp - prevXp)) * 100)
     : 100;
 
-  const claim = (tierNum: number) => {
-    const res = claimTier(tierNum);
+  const claim = async (tierNum: number) => {
+    const res = await claimTier(tierNum);
     if (!res) return;
     if (res.cards.length) setReveal(res.cards);
     else {
