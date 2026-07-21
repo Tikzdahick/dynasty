@@ -13,6 +13,8 @@ import {
 } from "@/lib/myteam/moments";
 import { getCoins, getOwned, spendCoins, addOwned } from "@/lib/store/myteam";
 import { logPackOpen } from "@/lib/store/packHistory";
+import { useAuth } from "@/lib/auth";
+import { grantRequest, resync } from "@/lib/store/cloud";
 
 function fmt(ms: number): string {
   if (ms <= 0) return "ended";
@@ -27,6 +29,7 @@ function fmt(ms: number): string {
 }
 
 export default function MomentsPage() {
+  const { user } = useAuth();
   const [now, setNow] = useState(() => Date.now());
   const [live, setLive] = useState<LiveMoment | null>(null);
   const [upcoming, setUpcoming] = useState<UpcomingMoment[]>([]);
@@ -50,21 +53,48 @@ export default function MomentsPage() {
     return () => clearInterval(iv);
   }, []);
 
-  const claim = () => {
+  const flash = (text: string, ms = 2600) => {
+    setMsg(text);
+    setTimeout(() => setMsg(null), ms);
+  };
+
+  const claim = async () => {
     if (!live) return;
-    const price = momentPrice(live.card);
     if (owned.has(live.card.id)) return;
+    const success = `🔥 ${live.card.name} — ${live.card.momentTitle} added!`;
+
+    if (user) {
+      // server deducts the moment price + grants the card atomically
+      const res = await grantRequest({ type: "moment", sport: "nba", cardId: live.card.id });
+      if (res.error) {
+        flash(
+          res.error === "insufficient balance"
+            ? "Not enough coins for this Moment."
+            : res.error === "already owned"
+            ? "You already own this card."
+            : "Couldn't buy that Moment — try again.",
+          2400
+        );
+        return;
+      }
+      await resync("nba");
+      logPackOpen(`Moment: ${live.card.momentTitle}`, [live.card.id]);
+      refresh();
+      flash(success);
+      return;
+    }
+
+    // guest → local
+    const price = momentPrice(live.card);
     if (coins < price) {
-      setMsg("Not enough coins for this Moment.");
-      setTimeout(() => setMsg(null), 2200);
+      flash("Not enough coins for this Moment.", 2200);
       return;
     }
     spendCoins(price);
     addOwned([live.card.id]);
     logPackOpen(`Moment: ${live.card.momentTitle}`, [live.card.id]);
     refresh();
-    setMsg(`🔥 ${live.card.name} — ${live.card.momentTitle} added!`);
-    setTimeout(() => setMsg(null), 2600);
+    flash(success);
   };
 
   return (

@@ -1,0 +1,11 @@
+-- Card-grant lockdown (final): remove the client's direct INSERT on owned_cards.
+-- After this, a logged-in client can no longer insert cards itself — cards enter
+-- owned_cards ONLY via the server grant functions (srv_open_pack /
+-- srv_grant_starter / srv_grant_reward_cards / srv_buy_moment) and the auction
+-- transfer RPCs (buy_listing / cancel_listing / list_card). All of those are
+-- SECURITY DEFINER and run as the table owner, so they bypass RLS and keep
+-- working. Read-own and delete-own stay (a user managing their own cards).
+--
+-- Run this ONLY after the client that routes every grant through /api/grant is
+-- deployed, so no legitimate path relies on the direct insert. Idempotent.
+drop policy if exists "cards insert own" on public.owned_cards;

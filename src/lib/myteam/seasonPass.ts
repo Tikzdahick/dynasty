@@ -3,7 +3,8 @@
 // thresholds and are claimed manually for coins / packs / exclusive cards.
 import { Reward, grantReward, GrantResult } from "@/lib/myteam/rewards";
 import { getCoins } from "@/lib/store/myteam";
-import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
+import { cloudUserId, claimRewardServer, grantRequest, resync } from "@/lib/store/cloud";
+import { cardById, Card } from "@/lib/myteam/cards";
 
 const XP_KEY = "dynasty.season.xp";
 const CLAIMED_KEY = "dynasty.season.claimed";
@@ -78,11 +79,19 @@ export async function claimTier(tierNum: number): Promise<GrantResult | null> {
   if (claimed.includes(tierNum)) return null;
 
   let res: GrantResult;
-  if (tier.reward.kind === "coins" && cloudUserId()) {
-    // one-time tier → server owns the amount + dedups (period "")
-    const coins = await claimRewardServer("nba", "season", String(tierNum), "");
-    if (coins == null) return null;
-    res = { reward: tier.reward, coins, cards: [], newBalance: getCoins() };
+  if (cloudUserId()) {
+    if (tier.reward.kind === "coins") {
+      // one-time tier → server owns the amount + dedups (period "")
+      const coins = await claimRewardServer("nba", "season", String(tierNum), "");
+      if (coins == null) return null;
+      res = { reward: tier.reward, coins, cards: [], newBalance: getCoins() };
+    } else {
+      const gr = await grantRequest({ type: "reward", sport: "nba", source: "season", ref: String(tierNum), period: "" });
+      if (gr.error || !gr.cardIds) return null;
+      const cards = gr.cardIds.map(cardById).filter(Boolean) as Card[];
+      await resync("nba");
+      res = { reward: tier.reward, coins: 0, cards, newBalance: getCoins() };
+    }
   } else {
     res = grantReward(tier.reward);
   }

@@ -3,7 +3,8 @@
 // at XP thresholds and are claimed manually for coins / packs / exclusive cards.
 import { Reward, grantReward, GrantResult } from "@/lib/soccer-myteam/rewards";
 import { getCoins } from "@/lib/store/soccer/myteam";
-import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
+import { cloudUserId, claimRewardServer, grantRequest, resync } from "@/lib/store/cloud";
+import { cardById, Card } from "@/lib/soccer-myteam/cards";
 
 const XP_KEY = "dynasty.sc.season.xp";
 const CLAIMED_KEY = "dynasty.sc.season.claimed";
@@ -77,10 +78,18 @@ export async function claimTier(tierNum: number): Promise<GrantResult | null> {
   if (claimed.includes(tierNum)) return null;
 
   let res: GrantResult;
-  if (tier.reward.kind === "coins" && cloudUserId()) {
-    const coins = await claimRewardServer("soccer", "season", String(tierNum), "");
-    if (coins == null) return null;
-    res = { reward: tier.reward, coins, cards: [], newBalance: getCoins() };
+  if (cloudUserId()) {
+    if (tier.reward.kind === "coins") {
+      const coins = await claimRewardServer("soccer", "season", String(tierNum), "");
+      if (coins == null) return null;
+      res = { reward: tier.reward, coins, cards: [], newBalance: getCoins() };
+    } else {
+      const gr = await grantRequest({ type: "reward", sport: "soccer", source: "season", ref: String(tierNum), period: "" });
+      if (gr.error || !gr.cardIds) return null;
+      const cards = gr.cardIds.map(cardById).filter(Boolean) as Card[];
+      await resync("soccer");
+      res = { reward: tier.reward, coins: 0, cards, newBalance: getCoins() };
+    }
   } else {
     res = grantReward(tier.reward);
   }

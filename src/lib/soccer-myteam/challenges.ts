@@ -6,7 +6,8 @@ import { Reward, grantReward, GrantResult } from "@/lib/soccer-myteam/rewards";
 import { addXp } from "@/lib/soccer-myteam/seasonPass";
 import { mulberry32, seedFromString } from "@/lib/rng";
 import { getCoins } from "@/lib/store/soccer/myteam";
-import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
+import { cloudUserId, claimRewardServer, grantRequest, resync } from "@/lib/store/cloud";
+import { cardById, Card } from "@/lib/soccer-myteam/cards";
 
 export type Metric =
   | "gamesPlayed"
@@ -149,10 +150,18 @@ export async function claimChallenge(
   if ((period.prog[id] ?? 0) < def.goal || period.claimed.includes(id)) return null;
 
   let res: GrantResult;
-  if (def.reward.kind === "coins" && cloudUserId()) {
-    const coins = await claimRewardServer("soccer", "challenge", id, periodKey);
-    if (coins == null) return null;
-    res = { reward: def.reward, coins, cards: [], newBalance: getCoins() };
+  if (cloudUserId()) {
+    if (def.reward.kind === "coins") {
+      const coins = await claimRewardServer("soccer", "challenge", id, periodKey);
+      if (coins == null) return null;
+      res = { reward: def.reward, coins, cards: [], newBalance: getCoins() };
+    } else {
+      const gr = await grantRequest({ type: "reward", sport: "soccer", source: "challenge", ref: id, period: periodKey });
+      if (gr.error || !gr.cardIds) return null;
+      const cards = gr.cardIds.map(cardById).filter(Boolean) as Card[];
+      await resync("soccer");
+      res = { reward: def.reward, coins: 0, cards, newBalance: getCoins() };
+    }
   } else {
     res = grantReward(def.reward);
   }

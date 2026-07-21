@@ -73,25 +73,6 @@ async function resolveUid(sb: ReturnType<typeof getSupabase>): Promise<string | 
   return cachedUid;
 }
 
-// ---- localStorage helpers ----
-function lsGetOwned(key: string): OwnedRow[] {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "[]") as OwnedRow[];
-  } catch {
-    return [];
-  }
-}
-function lsGetLineup(key: string): { formation?: string; starters: any[]; bench: any[] } {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return { starters: [], bench: [] };
-    const l = JSON.parse(raw);
-    return { formation: l.formation, starters: l.starters ?? [], bench: l.bench ?? [] };
-  } catch {
-    return { starters: [], bench: [] };
-  }
-}
-
 // ---- hydration ----
 let hydratedThisSession = false;
 
@@ -147,10 +128,11 @@ export async function ensureHydrated(): Promise<void> {
   }
 }
 
-/** First-login setup: seed a server-owned starting balance and import the
- *  browser's local cards/squads. Coins are NOT imported — a brand-new account
- *  gets the fixed starting balance from the server (grant_starting_coins), so a
- *  guest's local coin count can't be carried up. */
+/** First-login setup: seed the server-owned starting balance and reset the local
+ *  cache. Nothing is imported from the guest's localStorage — coins come from
+ *  grant_starting_coins, and cards come from the server-granted starter pack the
+ *  onboarding flow requests. This keeps a new account fully server-authoritative
+ *  (a guest can't carry up an edited coin count or collection). */
 async function migrate(): Promise<void> {
   const sb = getSupabase();
   if (!sb || typeof window === "undefined") return;
@@ -161,29 +143,12 @@ async function migrate(): Promise<void> {
     const k = KEYS[sport];
     // server-owned starting balance (one-time; no-op if the wallet exists)
     const { data: startBal } = await sb.rpc("grant_starting_coins", { p_sport: sport });
-    if (typeof startBal === "number") localStorage.setItem(k.coins, String(startBal));
-
-    const owned = lsGetOwned(k.owned);
-    if (owned.length) {
-      await sb.from("owned_cards").insert(
-        owned.map((o) => ({
-          iid: o.iid,
-          user_id: uid,
-          sport,
-          card_id: o.cardId,
-          acquired_at: new Date(o.acquiredAt || Date.now()).toISOString(),
-        }))
-      );
-    }
-
-    const lineup = lsGetLineup(k.lineup);
-    await sb.from("squads").upsert({
-      user_id: uid,
-      sport,
-      formation: lineup.formation ?? null,
-      starters: lineup.starters,
-      bench: lineup.bench,
-    });
+    localStorage.setItem(k.coins, String(typeof startBal === "number" ? startBal : 0));
+    // no server cards/squads yet → clear any local guest state so the cache
+    // matches the empty server side (the starter pack is granted at onboarding)
+    localStorage.setItem(k.owned, "[]");
+    localStorage.removeItem(k.lineup);
+    localStorage.setItem(k.init, "1"); // don't re-grant starting coins locally
   }
 }
 

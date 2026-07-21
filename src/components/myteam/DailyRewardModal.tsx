@@ -13,8 +13,9 @@ import { getDailyStatus, claimDaily, CYCLE_LENGTH } from "@/lib/store/dailyRewar
 import { PlayerCard } from "@/components/myteam/PlayerCard";
 import { tierForCard } from "@/lib/myteam/cards";
 import { useAuth } from "@/lib/auth";
-import { claimDailyServer } from "@/lib/store/cloud";
+import { claimDailyServer, grantRequest, resync } from "@/lib/store/cloud";
 import { getCoins } from "@/lib/store/myteam";
+import { cardById, Card } from "@/lib/myteam/cards";
 
 interface Props {
   onClose: () => void;
@@ -40,18 +41,27 @@ export function DailyRewardModal({ onClose, onClaimed }: Props) {
       // server enforces once-per-day + credits the coin reward itself
       setBusy(true);
       const res = await claimDailyServer("nba");
-      setBusy(false);
       if (!res) {
+        setBusy(false);
         setClaimError("You've already claimed today. Come back tomorrow!");
         return;
       }
       const reward = rewardForDay(res.day);
-      // coin days are already credited server-side — don't re-grant coins;
-      // pack/card days still generate + add the cards on the client for now.
-      const granted: GrantResult =
-        reward.kind === "coins"
-          ? { reward, coins: res.coins, cards: [], newBalance: getCoins() }
-          : grantReward(reward);
+      let granted: GrantResult;
+      if (reward.kind === "coins") {
+        // already credited server-side — don't re-grant coins
+        granted = { reward, coins: res.coins, cards: [], newBalance: getCoins() };
+      } else {
+        // pack/card day → server generates + grants the card(s)
+        const period = new Date().toISOString().slice(0, 10);
+        const gr = await grantRequest({
+          type: "reward", sport: "nba", source: "daily", ref: String(res.day), period,
+        });
+        const cards = (gr.cardIds ?? []).map(cardById).filter(Boolean) as Card[];
+        await resync("nba");
+        granted = { reward, coins: 0, cards, newBalance: getCoins() };
+      }
+      setBusy(false);
       setResult(granted);
       setPhase("revealed");
       onClaimed(granted);

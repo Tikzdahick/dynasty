@@ -13,8 +13,9 @@ import { getDailyStatus, claimDaily, CYCLE_LENGTH } from "@/lib/store/soccer/dai
 import { PlayerCard } from "@/components/soccer-myteam/PlayerCard";
 import { tierForCard } from "@/lib/soccer-myteam/cards";
 import { useAuth } from "@/lib/auth";
-import { claimDailyServer } from "@/lib/store/cloud";
+import { claimDailyServer, grantRequest, resync } from "@/lib/store/cloud";
 import { getCoins } from "@/lib/store/soccer/myteam";
+import { cardById, Card } from "@/lib/soccer-myteam/cards";
 
 interface Props {
   onClose: () => void;
@@ -39,16 +40,25 @@ export function DailyRewardModal({ onClose, onClaimed }: Props) {
     if (user) {
       setBusy(true);
       const res = await claimDailyServer("soccer");
-      setBusy(false);
       if (!res) {
+        setBusy(false);
         setClaimError("You've already claimed today. Come back tomorrow!");
         return;
       }
       const reward = rewardForDay(res.day);
-      const granted: GrantResult =
-        reward.kind === "coins"
-          ? { reward, coins: res.coins, cards: [], newBalance: getCoins() }
-          : grantReward(reward);
+      let granted: GrantResult;
+      if (reward.kind === "coins") {
+        granted = { reward, coins: res.coins, cards: [], newBalance: getCoins() };
+      } else {
+        const period = new Date().toISOString().slice(0, 10);
+        const gr = await grantRequest({
+          type: "reward", sport: "soccer", source: "daily", ref: String(res.day), period,
+        });
+        const cards = (gr.cardIds ?? []).map(cardById).filter(Boolean) as Card[];
+        await resync("soccer");
+        granted = { reward, coins: 0, cards, newBalance: getCoins() };
+      }
+      setBusy(false);
       setResult(granted);
       setPhase("revealed");
       onClaimed(granted);

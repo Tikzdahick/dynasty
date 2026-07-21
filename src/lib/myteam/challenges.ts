@@ -6,7 +6,8 @@ import { Reward, grantReward, GrantResult } from "@/lib/myteam/rewards";
 import { addXp } from "@/lib/myteam/seasonPass";
 import { mulberry32, seedFromString } from "@/lib/rng";
 import { getCoins } from "@/lib/store/myteam";
-import { cloudUserId, claimRewardServer } from "@/lib/store/cloud";
+import { cloudUserId, claimRewardServer, grantRequest, resync } from "@/lib/store/cloud";
+import { cardById, Card } from "@/lib/myteam/cards";
 
 export type Metric =
   | "gamesPlayed"
@@ -149,14 +150,22 @@ export async function claimChallenge(
   if ((period.prog[id] ?? 0) < def.goal || period.claimed.includes(id)) return null;
 
   let res: GrantResult;
-  if (def.reward.kind === "coins" && cloudUserId()) {
-    // logged in → server owns the amount + dedups the claim
-    const coins = await claimRewardServer("nba", "challenge", id, periodKey);
-    if (coins == null) return null; // server rejected (already claimed / error)
-    res = { reward: def.reward, coins, cards: [], newBalance: getCoins() };
+  if (cloudUserId()) {
+    if (def.reward.kind === "coins") {
+      // server owns the amount + dedups the claim
+      const coins = await claimRewardServer("nba", "challenge", id, periodKey);
+      if (coins == null) return null; // server rejected (already claimed / error)
+      res = { reward: def.reward, coins, cards: [], newBalance: getCoins() };
+    } else {
+      // pack/card reward → server generates + grants the card(s)
+      const gr = await grantRequest({ type: "reward", sport: "nba", source: "challenge", ref: id, period: periodKey });
+      if (gr.error || !gr.cardIds) return null;
+      const cards = gr.cardIds.map(cardById).filter(Boolean) as Card[];
+      await resync("nba");
+      res = { reward: def.reward, coins: 0, cards, newBalance: getCoins() };
+    }
   } else {
-    // guest coins, or a pack/card reward (cards generated locally for now)
-    res = grantReward(def.reward);
+    res = grantReward(def.reward); // guest
   }
   addXp(def.xp);
   period.claimed.push(id);
