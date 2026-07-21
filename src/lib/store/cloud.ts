@@ -187,6 +187,20 @@ export async function resync(sport: Sport): Promise<void> {
   );
 }
 
+/** Server-authoritative spend for logged-in users. Deducts via the adjust_coins
+ *  RPC (which validates balance >= amount server-side and rejects overspend) and
+ *  returns the new balance, or null if the server rejected it. Syncs the local
+ *  mirror to the authoritative value. Use this to GATE an action (e.g. a pack)
+ *  so the client can never spend coins it doesn't actually have. */
+export async function spendServer(sport: Sport, amount: number): Promise<number | null> {
+  const sb = getSupabase();
+  if (!sb || !cloudUserId()) return null;
+  const { data, error } = await sb.rpc("adjust_coins", { p_sport: sport, p_delta: -amount });
+  if (error || typeof data !== "number") return null;
+  if (typeof window !== "undefined") localStorage.setItem(KEYS[sport].coins, String(data));
+  return data;
+}
+
 // ---- write-through (fire-and-forget; guarded on being logged in) ----
 export function pushCoin(sport: Sport, delta: number): void {
   const sb = getSupabase();

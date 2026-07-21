@@ -9,7 +9,8 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
-import { ensureHydrated } from "@/lib/store/cloud";
+import { ensureHydrated, spendServer } from "@/lib/store/cloud";
+import { useAuth } from "@/lib/auth";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
@@ -52,6 +53,7 @@ const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
 ];
 
 export default function SoccerMyTeamPage() {
+  const { user } = useAuth();
   const flags = useFlags();
   const packOdds = usePackOdds();
   const [coins, setCoins] = useState(0);
@@ -109,14 +111,23 @@ export default function SoccerMyTeamPage() {
     setOwned(getOwned());
   }
 
-  function buy(pack: PackDef) {
+  async function buy(pack: PackDef) {
     setError(null);
-    const bal = spendCoins(pack.price);
-    if (bal == null) {
-      setError("Not enough Dynasty Coins for that pack.");
-      return;
+    if (user) {
+      const newBal = await spendServer("soccer", pack.price);
+      if (newBal == null) {
+        setError("Not enough Dynasty Coins for that pack.");
+        return;
+      }
+      setCoins(newBal);
+    } else {
+      const bal = spendCoins(pack.price);
+      if (bal == null) {
+        setError("Not enough Dynasty Coins for that pack.");
+        return;
+      }
+      setCoins(bal);
     }
-    setCoins(bal);
     setOpeningSource(pack.name);
     setOpening(openPack(applyPackOverride("soccer", pack, packOdds)));
   }

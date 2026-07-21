@@ -33,7 +33,8 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
-import { ensureHydrated } from "@/lib/store/cloud";
+import { ensureHydrated, spendServer } from "@/lib/store/cloud";
+import { useAuth } from "@/lib/auth";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
 
@@ -53,6 +54,7 @@ const HUB_LINKS: { href: string; label: string; flag?: FlagKey }[] = [
 ];
 
 export default function MyTeamPage() {
+  const { user } = useAuth();
   const flags = useFlags();
   const packOdds = usePackOdds();
   const [coins, setCoins] = useState(0);
@@ -116,14 +118,24 @@ export default function MyTeamPage() {
     setOwned(getOwned());
   }
 
-  function buy(pack: PackDef) {
+  async function buy(pack: PackDef) {
     setError(null);
-    const bal = spendCoins(pack.price);
-    if (bal == null) {
-      setError("Not enough Dynasty Coins for that pack.");
-      return;
+    if (user) {
+      // server validates the balance + deducts; only open if it succeeds
+      const newBal = await spendServer("nba", pack.price);
+      if (newBal == null) {
+        setError("Not enough Dynasty Coins for that pack.");
+        return;
+      }
+      setCoins(newBal);
+    } else {
+      const bal = spendCoins(pack.price);
+      if (bal == null) {
+        setError("Not enough Dynasty Coins for that pack.");
+        return;
+      }
+      setCoins(bal);
     }
-    setCoins(bal);
     setOpeningSource(pack.name);
     setOpening(openPack(applyPackOverride("nba", pack, packOdds)));
   }
