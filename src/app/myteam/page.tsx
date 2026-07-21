@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { PACKS, openPack, PackDef } from "@/lib/myteam/packs";
 import { Card } from "@/lib/myteam/cards";
-import { RARITY_TIERS, starterPackForTeam } from "@/lib/myteam/cards";
+import { RARITY_TIERS, starterPackForTeam, cardById } from "@/lib/myteam/cards";
 import { PlayerCard } from "@/components/myteam/PlayerCard";
 import { PackOpening } from "@/components/myteam/PackOpening";
 import { DailyRewardModal } from "@/components/myteam/DailyRewardModal";
@@ -33,7 +33,7 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
-import { ensureHydrated, spendServer } from "@/lib/store/cloud";
+import { ensureHydrated, grantRequest, resync } from "@/lib/store/cloud";
 import { useAuth } from "@/lib/auth";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
@@ -61,6 +61,8 @@ export default function MyTeamPage() {
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
   const [openingSource, setOpeningSource] = useState("Pack");
+  // true when the reveal's cards were already granted server-side (don't re-add)
+  const [serverGranted, setServerGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDaily, setShowDaily] = useState(false);
   const [dailyClaimable, setDailyClaimable] = useState(false);
@@ -103,12 +105,25 @@ export default function MyTeamPage() {
     }
   }, []);
 
-  function chooseTeam(teamId: string) {
+  async function chooseTeam(teamId: string) {
     markOnboarded(teamId);
     setShowOnboard(false);
-    // reveal the starter cards via the existing pack-opening flow (which adds them)
-    const starter = starterPackForTeam(teamId);
     setOpeningSource("Starter Pack");
+    if (user) {
+      // server grants the starter once; reveal exactly what it granted
+      const res = await grantRequest({ type: "starter", sport: "nba", teamId });
+      const cards = (res.cardIds ?? []).map(cardById).filter(Boolean) as Card[];
+      if (cards.length > 0) {
+        setServerGranted(true);
+        setOpening(cards);
+      } else {
+        refresh(); // already had a starter → nothing to reveal
+      }
+      return;
+    }
+    // guest: local starter via the existing pack-opening flow (which adds them)
+    const starter = starterPackForTeam(teamId);
+    setServerGranted(false);
     if (starter.length > 0) setOpening(starter);
     else refresh(); // defensive: never open an empty reveal
   }
@@ -121,13 +136,21 @@ export default function MyTeamPage() {
   async function buy(pack: PackDef) {
     setError(null);
     if (user) {
-      // server validates the balance + deducts; only open if it succeeds
-      const newBal = await spendServer("nba", pack.price);
-      if (newBal == null) {
-        setError("Not enough Dynasty Coins for that pack.");
+      // server deducts the price, opens the pack, and grants the cards atomically
+      const res = await grantRequest({ type: "pack", sport: "nba", packId: pack.id });
+      if (res.error || !res.cardIds) {
+        setError(
+          res.error === "insufficient balance"
+            ? "Not enough Dynasty Coins for that pack."
+            : "Couldn't open that pack — try again."
+        );
         return;
       }
-      setCoins(newBal);
+      if (typeof res.balance === "number") setCoins(res.balance);
+      const cards = res.cardIds.map(cardById).filter(Boolean) as Card[];
+      setServerGranted(true);
+      setOpeningSource(pack.name);
+      setOpening(cards);
     } else {
       const bal = spendCoins(pack.price);
       if (bal == null) {
@@ -135,18 +158,22 @@ export default function MyTeamPage() {
         return;
       }
       setCoins(bal);
+      setServerGranted(false);
+      setOpeningSource(pack.name);
+      setOpening(openPack(applyPackOverride("nba", pack, packOdds)));
     }
-    setOpeningSource(pack.name);
-    setOpening(openPack(applyPackOverride("nba", pack, packOdds)));
   }
 
-  function finishOpening() {
+  async function finishOpening() {
     const wasStarter = openingSource === "Starter Pack";
+    const granted = serverGranted;
     if (opening) {
-      addOwned(opening.map((c) => c.id));
+      if (!granted) addOwned(opening.map((c) => c.id)); // guest: grant locally
       onPackOpened(openingSource, opening); // XP + challenges + pack history
     }
+    setServerGranted(false);
     setOpening(null);
+    if (granted) await resync("nba"); // pull the server-granted cards into cache
     refresh();
     // first-time players: run the walkthrough right after the Starter Pack reveal
     if (wasStarter && !hasSeenTutorial()) setShowTutorial(true);

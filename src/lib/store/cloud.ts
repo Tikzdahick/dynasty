@@ -222,6 +222,33 @@ export async function spendServer(sport: Sport, amount: number): Promise<number 
   return data;
 }
 
+/** Call the server-authoritative card-grant route (/api/grant). The server
+ *  picks the cards and couples the grant to its cost/claim; the client only
+ *  displays the result. Returns { cardIds, balance? } or { error }. */
+export async function grantRequest(
+  body: Record<string, unknown>
+): Promise<{ cardIds?: string[]; balance?: number; price?: number; error?: string }> {
+  const sb = getSupabase();
+  if (!sb) return { error: "offline" };
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return { error: "not signed in" };
+  try {
+    const res = await fetch("/api/grant", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) return { error: json?.error ?? "grant failed" };
+    return json;
+  } catch (e: any) {
+    return { error: e?.message ?? "network error" };
+  }
+}
+
 /** Claim a coin reward (challenge / season tier) server-side. The server owns
  *  the amount (reward_defs) and dedups the claim (reward_claims), so a client
  *  can't inflate or replay it. Returns the credited coins, or null if rejected

@@ -9,11 +9,11 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
-import { ensureHydrated, spendServer } from "@/lib/store/cloud";
+import { ensureHydrated, grantRequest, resync } from "@/lib/store/cloud";
 import { useAuth } from "@/lib/auth";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
-import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
+import { RARITY_TIERS, starterPackForTeam, cardById } from "@/lib/soccer-myteam/cards";
 import { PlayerCard } from "@/components/soccer-myteam/PlayerCard";
 import { PackOpening } from "@/components/soccer-myteam/PackOpening";
 import { DailyRewardModal } from "@/components/soccer-myteam/DailyRewardModal";
@@ -60,6 +60,7 @@ export default function SoccerMyTeamPage() {
   const [owned, setOwned] = useState<OwnedCard[]>([]);
   const [opening, setOpening] = useState<Card[] | null>(null);
   const [openingSource, setOpeningSource] = useState("Pack");
+  const [serverGranted, setServerGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDaily, setShowDaily] = useState(false);
   const [dailyClaimable, setDailyClaimable] = useState(false);
@@ -97,11 +98,23 @@ export default function SoccerMyTeamPage() {
     }
   }, []);
 
-  function chooseTeam(teamId: string) {
+  async function chooseTeam(teamId: string) {
     markOnboarded(teamId);
     setShowOnboard(false);
-    const starter = starterPackForTeam(teamId);
     setOpeningSource("Starter Pack");
+    if (user) {
+      const res = await grantRequest({ type: "starter", sport: "soccer", teamId });
+      const cards = (res.cardIds ?? []).map(cardById).filter(Boolean) as Card[];
+      if (cards.length > 0) {
+        setServerGranted(true);
+        setOpening(cards);
+      } else {
+        refresh();
+      }
+      return;
+    }
+    const starter = starterPackForTeam(teamId);
+    setServerGranted(false);
     if (starter.length > 0) setOpening(starter);
     else refresh();
   }
@@ -114,12 +127,20 @@ export default function SoccerMyTeamPage() {
   async function buy(pack: PackDef) {
     setError(null);
     if (user) {
-      const newBal = await spendServer("soccer", pack.price);
-      if (newBal == null) {
-        setError("Not enough Dynasty Coins for that pack.");
+      const res = await grantRequest({ type: "pack", sport: "soccer", packId: pack.id });
+      if (res.error || !res.cardIds) {
+        setError(
+          res.error === "insufficient balance"
+            ? "Not enough Dynasty Coins for that pack."
+            : "Couldn't open that pack — try again."
+        );
         return;
       }
-      setCoins(newBal);
+      if (typeof res.balance === "number") setCoins(res.balance);
+      const cards = res.cardIds.map(cardById).filter(Boolean) as Card[];
+      setServerGranted(true);
+      setOpeningSource(pack.name);
+      setOpening(cards);
     } else {
       const bal = spendCoins(pack.price);
       if (bal == null) {
@@ -127,18 +148,22 @@ export default function SoccerMyTeamPage() {
         return;
       }
       setCoins(bal);
+      setServerGranted(false);
+      setOpeningSource(pack.name);
+      setOpening(openPack(applyPackOverride("soccer", pack, packOdds)));
     }
-    setOpeningSource(pack.name);
-    setOpening(openPack(applyPackOverride("soccer", pack, packOdds)));
   }
 
-  function finishOpening() {
+  async function finishOpening() {
     const wasStarter = openingSource === "Starter Pack";
+    const granted = serverGranted;
     if (opening) {
-      addOwned(opening.map((c) => c.id));
+      if (!granted) addOwned(opening.map((c) => c.id));
       onPackOpened(openingSource, opening); // XP + challenges + pack history
     }
+    setServerGranted(false);
     setOpening(null);
+    if (granted) await resync("soccer");
     refresh();
     if (wasStarter && !hasSeenTutorial()) setShowTutorial(true);
   }
