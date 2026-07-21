@@ -166,6 +166,27 @@ async function migrate(): Promise<void> {
   }
 }
 
+/** Re-pull one sport's coins + cards from the server into the local cache.
+ *  Call after a server-side change (e.g. an auction trade) to reconcile. */
+export async function resync(sport: Sport): Promise<void> {
+  const sb = getSupabase();
+  if (!sb || typeof window === "undefined") return;
+  const uid = await resolveUid(sb);
+  if (!uid) return;
+  const k = KEYS[sport];
+  const [{ data: balRow }, { data: cards }] = await Promise.all([
+    sb.from("coin_balances").select("balance").eq("user_id", uid).eq("sport", sport).maybeSingle(),
+    sb.from("owned_cards").select("iid,card_id,acquired_at").eq("user_id", uid).eq("sport", sport),
+  ]);
+  if (balRow) localStorage.setItem(k.coins, String(balRow.balance));
+  localStorage.setItem(
+    k.owned,
+    JSON.stringify(
+      (cards ?? []).map((c: any) => ({ iid: c.iid, cardId: c.card_id, acquiredAt: new Date(c.acquired_at).getTime() }))
+    )
+  );
+}
+
 // ---- write-through (fire-and-forget; guarded on being logged in) ----
 export function pushCoin(sport: Sport, delta: number): void {
   const sb = getSupabase();
