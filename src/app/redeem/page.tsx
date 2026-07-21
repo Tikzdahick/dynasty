@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase/client";
+import { resync } from "@/lib/store/cloud";
 import { findCode } from "@/lib/redeem/codes";
 import { hasRedeemed, markRedeemed, readRedeemOverrides } from "@/lib/redeem/redemptions";
 import { addCoins as addNbaCoins } from "@/lib/store/myteam";
@@ -9,18 +12,44 @@ import { addCoins as addSoccerCoins } from "@/lib/store/soccer/myteam";
 
 type Result = { ok: true; message: string } | { ok: false; message: string } | null;
 
+function serverErr(msg: string): string {
+  if (/invalid code/i.test(msg)) return "That code isn’t valid.";
+  if (/already redeemed/i.test(msg)) return "You’ve already redeemed this code.";
+  if (/inactive/i.test(msg)) return "This code is no longer active.";
+  if (/exhausted/i.test(msg)) return "This code has reached its redemption limit.";
+  return msg;
+}
+
 export default function RedeemPage() {
+  const { user } = useAuth();
   const [input, setInput] = useState("");
   const [result, setResult] = useState<Result>(null);
   const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
     const raw = input.trim();
     if (!raw) return;
     setBusy(true);
+    setResult(null);
 
+    if (user) {
+      // logged in -> server-authoritative redeem: DB per-user dedup + credit
+      const sb = getSupabase();
+      const { data, error } = await sb!.rpc("redeem_code", { p_code: raw });
+      if (error) {
+        setResult({ ok: false, message: serverErr(error.message) });
+      } else {
+        await Promise.all([resync("nba"), resync("soccer")]);
+        setResult({ ok: true, message: `🎉 ${Number(data).toLocaleString()} coins added to your balance!` });
+        setInput("");
+      }
+      setBusy(false);
+      return;
+    }
+
+    // guest -> local codes + per-browser dedup (unchanged)
     const code = findCode(raw, readRedeemOverrides());
     if (!code) {
       setResult({ ok: false, message: "That code isn’t valid." });
@@ -29,7 +58,6 @@ export default function RedeemPage() {
     } else if (hasRedeemed(code.code)) {
       setResult({ ok: false, message: "You’ve already redeemed this code." });
     } else {
-      // credit both wallets (NBA MyTeam + Soccer MyTeam are separate balances)
       addNbaCoins(code.reward_amount);
       addSoccerCoins(code.reward_amount);
       markRedeemed(code.code);
