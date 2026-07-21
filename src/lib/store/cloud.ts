@@ -30,6 +30,17 @@ interface OwnedRow {
   acquiredAt: number;
 }
 
+// localStorage keys for the daily-login-reward streak, per sport.
+const DAILY_KEYS: Record<Sport, string> = {
+  nba: "dynasty.dailyreward",
+  soccer: "dynasty.sc.dailyreward",
+};
+
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ---- cached auth state (store functions are synchronous, so we cache uid) ----
 let cachedUid: string | null = null;
 let subscribed = false;
@@ -97,10 +108,11 @@ export async function ensureHydrated(): Promise<void> {
   if (!uid) return;
   hydratedThisSession = true;
 
-  const [{ data: bals }, { data: cards }, { data: squads }] = await Promise.all([
+  const [{ data: bals }, { data: cards }, { data: squads }, { data: daily }] = await Promise.all([
     sb.from("coin_balances").select("sport,balance").eq("user_id", uid),
     sb.from("owned_cards").select("iid,sport,card_id,acquired_at").eq("user_id", uid),
     sb.from("squads").select("sport,formation,starters,bench").eq("user_id", uid),
+    sb.from("daily_claims").select("sport,last_claim,streak,best").eq("user_id", uid),
   ]);
 
   // Brand-new account (no balances yet) → migrate the current local data up.
@@ -124,6 +136,15 @@ export async function ensureHydrated(): Promise<void> {
       localStorage.setItem(
         k.lineup,
         JSON.stringify({ formation: sq.formation, starters: sq.starters, bench: sq.bench })
+      );
+    }
+    // daily-reward streak → keep the local track in sync with the server so
+    // the modal shows the right day/streak/claimable state across devices.
+    const dc = (daily ?? []).find((d: any) => d.sport === sport);
+    if (dc && dc.last_claim) {
+      localStorage.setItem(
+        DAILY_KEYS[sport],
+        JSON.stringify({ lastClaim: dc.last_claim, streak: dc.streak, best: dc.best })
       );
     }
     localStorage.setItem(k.init, "1"); // don't re-grant starting coins
@@ -199,6 +220,38 @@ export async function spendServer(sport: Sport, amount: number): Promise<number 
   if (error || typeof data !== "number") return null;
   if (typeof window !== "undefined") localStorage.setItem(KEYS[sport].coins, String(data));
   return data;
+}
+
+export interface DailyClaim {
+  day: number;
+  streak: number;
+  coins: number;
+}
+
+/** Claim today's daily reward server-side. The server enforces one claim per
+ *  calendar day (per sport), computes the streak, and credits the coin days
+ *  itself. Returns the claim result, or null if the server rejected it (already
+ *  claimed today / not logged in). On success the local streak is synced and,
+ *  for coin days, the server-credited balance is pulled back into the cache. */
+export async function claimDailyServer(sport: Sport): Promise<DailyClaim | null> {
+  const sb = getSupabase();
+  if (!sb || !cloudUserId()) return null;
+  const { data, error } = await sb.rpc("claim_daily", { p_sport: sport });
+  if (error || !data) return null;
+  const r = data as DailyClaim;
+  if (typeof window !== "undefined") {
+    const key = DAILY_KEYS[sport];
+    let best = r.streak;
+    try {
+      const prev = JSON.parse(localStorage.getItem(key) || "{}");
+      best = Math.max(best, prev.best || 0);
+    } catch {
+      /* ignore */
+    }
+    localStorage.setItem(key, JSON.stringify({ lastClaim: todayLocal(), streak: r.streak, best }));
+    if (r.coins > 0) await resync(sport); // pull the server-credited balance
+  }
+  return r;
 }
 
 // ---- write-through (fire-and-forget; guarded on being logged in) ----

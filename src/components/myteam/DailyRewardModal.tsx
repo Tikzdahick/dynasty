@@ -12,6 +12,9 @@ import {
 import { getDailyStatus, claimDaily, CYCLE_LENGTH } from "@/lib/store/dailyReward";
 import { PlayerCard } from "@/components/myteam/PlayerCard";
 import { tierForCard } from "@/lib/myteam/cards";
+import { useAuth } from "@/lib/auth";
+import { claimDailyServer } from "@/lib/store/cloud";
+import { getCoins } from "@/lib/store/myteam";
 
 interface Props {
   onClose: () => void;
@@ -19,14 +22,43 @@ interface Props {
 }
 
 export function DailyRewardModal({ onClose, onClaimed }: Props) {
+  const { user } = useAuth();
   const status = useMemo(() => getDailyStatus(), []);
   const [phase, setPhase] = useState<"track" | "revealed">("track");
   const [result, setResult] = useState<GrantResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   const claimedThrough = status.canClaim ? status.pendingDay - 1 : status.pendingDay;
   const activeDay = status.canClaim ? status.pendingDay : null;
 
-  const claim = () => {
+  const claim = async () => {
+    if (busy) return;
+    setClaimError(null);
+
+    if (user) {
+      // server enforces once-per-day + credits the coin reward itself
+      setBusy(true);
+      const res = await claimDailyServer("nba");
+      setBusy(false);
+      if (!res) {
+        setClaimError("You've already claimed today. Come back tomorrow!");
+        return;
+      }
+      const reward = rewardForDay(res.day);
+      // coin days are already credited server-side — don't re-grant coins;
+      // pack/card days still generate + add the cards on the client for now.
+      const granted: GrantResult =
+        reward.kind === "coins"
+          ? { reward, coins: res.coins, cards: [], newBalance: getCoins() }
+          : grantReward(reward);
+      setResult(granted);
+      setPhase("revealed");
+      onClaimed(granted);
+      return;
+    }
+
+    // guest → local claim + local grant (unchanged)
     const res = claimDaily();
     if (!res) return;
     const granted = grantReward(rewardForDay(res.day));
@@ -88,14 +120,24 @@ export function DailyRewardModal({ onClose, onClaimed }: Props) {
 
               <button
                 onClick={status.canClaim ? claim : onClose}
-                className={`btn mt-6 w-full ${
+                disabled={busy}
+                className={`btn mt-6 w-full disabled:opacity-60 ${
                   status.canClaim
                     ? "bg-amber-400 text-black hover:bg-amber-300"
                     : "border border-white/10 text-white/70 hover:bg-white/5"
                 }`}
               >
-                {status.canClaim ? `Claim Day ${status.pendingDay} reward` : "Close"}
+                {busy
+                  ? "Claiming…"
+                  : status.canClaim
+                  ? `Claim Day ${status.pendingDay} reward`
+                  : "Close"}
               </button>
+              {claimError && (
+                <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-center text-sm text-amber-200">
+                  {claimError}
+                </div>
+              )}
               {status.canClaim && (
                 <button onClick={onClose} className="mt-2 w-full text-xs text-white/40 hover:text-white">
                   Maybe later
