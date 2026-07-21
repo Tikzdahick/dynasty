@@ -33,6 +33,7 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
+import { ensureHydrated } from "@/lib/store/cloud";
 
 const RIVAL_PINGED_KEY = "dynasty.rivalping.shownSession";
 
@@ -63,6 +64,11 @@ export default function MyTeamPage() {
   const [dailyClaimable, setDailyClaimable] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  // logged-in users: pull server data into the local cache, then re-read
+  useEffect(() => {
+    ensureHydrated().then(() => refresh());
+  }, []);
 
   useEffect(() => {
     ensureInit();

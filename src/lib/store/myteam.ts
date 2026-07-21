@@ -1,6 +1,7 @@
 // MyTeam persistence — Dynasty Coins balance and the owned-card collection.
 // Local-first (guest friendly); a Supabase mirror can layer on later.
 import { Lineup, emptyLineup, normalizeLineup } from "@/lib/myteam/lineup";
+import { pushCoin, pushCardAdd, pushCardRemove, pushSquad } from "@/lib/store/cloud";
 
 const COINS_KEY = "dynasty.myteam.coins";
 const OWNED_KEY = "dynasty.myteam.owned";
@@ -43,14 +44,18 @@ export function setCoins(n: number): number {
 }
 
 export function addCoins(delta: number): number {
-  return setCoins(getCoins() + delta);
+  const v = setCoins(getCoins() + delta);
+  pushCoin("nba", delta); // server mirror (RPC); no-op for guests
+  return v;
 }
 
 /** Spend coins if affordable. Returns the new balance, or null if too poor. */
 export function spendCoins(amount: number): number | null {
   const bal = getCoins();
   if (bal < amount) return null;
-  return setCoins(bal - amount);
+  const v = setCoins(bal - amount);
+  pushCoin("nba", -amount);
+  return v;
 }
 
 export function getOwned(): OwnedCard[] {
@@ -75,6 +80,7 @@ export function addOwned(cardIds: string[]): OwnedCard[] {
     acquiredAt: Date.now(),
   }));
   writeOwned([...getOwned(), ...fresh]);
+  pushCardAdd("nba", fresh);
   return fresh;
 }
 
@@ -84,6 +90,7 @@ export function removeOwned(iid: string): boolean {
   const next = list.filter((o) => o.iid !== iid);
   if (next.length === list.length) return false;
   writeOwned(next);
+  pushCardRemove(iid);
   return true;
 }
 
@@ -105,6 +112,8 @@ export function getLineup(): Lineup {
 export function setLineup(lineup: Lineup): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(LINEUP_KEY, JSON.stringify(lineup));
+  // NBA lineups have no formation (5 fixed positions)
+  pushSquad("nba", { starters: lineup.starters, bench: lineup.bench });
 }
 
 /* ---------------- onboarding ---------------- */

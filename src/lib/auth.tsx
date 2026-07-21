@@ -11,6 +11,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { getGuestName, setGuestName as persistGuest } from "@/lib/store/local";
+import { ensureHydrated } from "@/lib/store/cloud";
 
 interface AuthState {
   user: User | null;
@@ -43,9 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ?? null);
       setLoading(false);
+      if (data.user) ensureHydrated(); // pull account data into the local cache
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) ensureHydrated();
     });
     return () => sub.subscription.unsubscribe();
   }, []);

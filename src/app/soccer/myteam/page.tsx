@@ -9,6 +9,7 @@ import { usePackOdds } from "@/lib/admin/usePackOdds";
 import { applyPackOverride } from "@/lib/admin/packOdds";
 import { Tutorial } from "@/components/onboarding/Tutorial";
 import { hasSeenTutorial, markTutorialSeen } from "@/lib/onboarding/tutorial";
+import { ensureHydrated } from "@/lib/store/cloud";
 import { PACKS, openPack, PackDef } from "@/lib/soccer-myteam/packs";
 import { Card } from "@/lib/soccer-myteam/cards";
 import { RARITY_TIERS, starterPackForTeam } from "@/lib/soccer-myteam/cards";
@@ -62,6 +63,10 @@ export default function SoccerMyTeamPage() {
   const [dailyClaimable, setDailyClaimable] = useState(false);
   const [showOnboard, setShowOnboard] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    ensureHydrated().then(() => refresh());
+  }, []);
 
   useEffect(() => {
     ensureInit();

@@ -1,6 +1,7 @@
 // Soccer MyTeam persistence — Dynasty Coins balance and the owned-card
 // collection, namespaced separately from the NBA MyTeam economy. Local-first.
 import { Lineup, emptyLineup, normalizeLineup } from "@/lib/soccer-myteam/lineup";
+import { pushCoin, pushCardAdd, pushCardRemove, pushSquad } from "@/lib/store/cloud";
 
 const COINS_KEY = "dynasty.sc.myteam.coins";
 const OWNED_KEY = "dynasty.sc.myteam.owned";
@@ -43,14 +44,18 @@ export function setCoins(n: number): number {
 }
 
 export function addCoins(delta: number): number {
-  return setCoins(getCoins() + delta);
+  const v = setCoins(getCoins() + delta);
+  pushCoin("soccer", delta);
+  return v;
 }
 
 /** Spend coins if affordable. Returns the new balance, or null if too poor. */
 export function spendCoins(amount: number): number | null {
   const bal = getCoins();
   if (bal < amount) return null;
-  return setCoins(bal - amount);
+  const v = setCoins(bal - amount);
+  pushCoin("soccer", -amount);
+  return v;
 }
 
 export function getOwned(): OwnedCard[] {
@@ -75,6 +80,7 @@ export function addOwned(cardIds: string[]): OwnedCard[] {
     acquiredAt: Date.now(),
   }));
   writeOwned([...getOwned(), ...fresh]);
+  pushCardAdd("soccer", fresh);
   return fresh;
 }
 
@@ -84,6 +90,7 @@ export function removeOwned(iid: string): boolean {
   const next = list.filter((o) => o.iid !== iid);
   if (next.length === list.length) return false;
   writeOwned(next);
+  pushCardRemove(iid);
   return true;
 }
 
@@ -105,6 +112,7 @@ export function getLineup(): Lineup {
 export function setLineup(lineup: Lineup): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(LINEUP_KEY, JSON.stringify(lineup));
+  pushSquad("soccer", { formation: lineup.formation, starters: lineup.starters, bench: lineup.bench });
 }
 
 /* ---------------- onboarding ---------------- */
