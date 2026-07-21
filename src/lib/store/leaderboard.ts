@@ -34,12 +34,12 @@ export async function saveNbaResult(
     id: uid(),
     created_at: new Date().toISOString(),
   };
-  // Always mirror locally so the player sees it instantly.
-  addLocalNba(record);
 
   if (supabase) {
     const { data: userData } = await supabase.auth.getUser();
     if (userData.user) {
+      // logged in -> the shared board only (the DB trigger sets the real
+      // display_name); no local mirror, so results don't appear twice.
       const { error } = await supabase.from("nba_results").insert({
         user_id: userData.user.id,
         username: entry.username,
@@ -52,6 +52,7 @@ export async function saveNbaResult(
       if (!error) return { saved: "cloud" };
     }
   }
+  addLocalNba(record); // guest / offline fallback
   return { saved: "local" };
 }
 
@@ -108,7 +109,6 @@ export async function saveSoccerResult(
     id: uid(),
     created_at: new Date().toISOString(),
   };
-  addLocalSoccer(record);
 
   if (supabase) {
     const { data: userData } = await supabase.auth.getUser();
@@ -125,6 +125,7 @@ export async function saveSoccerResult(
       if (!error) return { saved: "cloud" };
     }
   }
+  addLocalSoccer(record); // guest / offline fallback
   return { saved: "local" };
 }
 

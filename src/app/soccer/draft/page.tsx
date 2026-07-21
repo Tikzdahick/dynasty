@@ -288,11 +288,12 @@ function TournamentResult({
   }, []);
 
   const save = async () => {
-    if (!name.trim()) return;
+    const submitName = user ? displayName : name.trim();
+    if (!submitName) return;
     if (!user) setGuestName(name.trim());
     setSaved("saving");
     const res = await saveSoccerResult({
-      username: name.trim(),
+      username: submitName,
       result: result.reachedRound,
       players: xi.map((p) => p.name),
       formation: formationName,
@@ -366,6 +367,15 @@ function TournamentResult({
               {saved === "local" ? "Stored on this device. Sign in to save to the global board." : "Posted to the global leaderboard."}
             </p>
             <Link href="/leaderboard" className="btn-ghost mt-3 w-full">View leaderboard →</Link>
+          </div>
+        ) : user ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p className="flex-1 text-sm text-white/60">
+              Posting as <span className="font-bold text-white">{displayName}</span>
+            </p>
+            <button onClick={save} disabled={saved === "saving"} className="btn bg-soccer text-black hover:bg-soccer-gold">
+              {saved === "saving" ? "Saving…" : "Post to leaderboard"}
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row">
