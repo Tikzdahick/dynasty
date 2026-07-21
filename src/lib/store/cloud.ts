@@ -74,10 +74,6 @@ async function resolveUid(sb: ReturnType<typeof getSupabase>): Promise<string | 
 }
 
 // ---- localStorage helpers ----
-function lsGetNum(key: string): number {
-  const raw = localStorage.getItem(key);
-  return raw == null ? 0 : Math.max(0, parseInt(raw, 10) || 0);
-}
 function lsGetOwned(key: string): OwnedRow[] {
   try {
     return JSON.parse(localStorage.getItem(key) || "[]") as OwnedRow[];
@@ -151,7 +147,10 @@ export async function ensureHydrated(): Promise<void> {
   }
 }
 
-/** First-login import: push the current browser's local data to the server. */
+/** First-login setup: seed a server-owned starting balance and import the
+ *  browser's local cards/squads. Coins are NOT imported — a brand-new account
+ *  gets the fixed starting balance from the server (grant_starting_coins), so a
+ *  guest's local coin count can't be carried up. */
 async function migrate(): Promise<void> {
   const sb = getSupabase();
   if (!sb || typeof window === "undefined") return;
@@ -160,8 +159,9 @@ async function migrate(): Promise<void> {
 
   for (const sport of ["nba", "soccer"] as Sport[]) {
     const k = KEYS[sport];
-    const coins = lsGetNum(k.coins);
-    if (coins > 0) await sb.rpc("adjust_coins", { p_sport: sport, p_delta: coins });
+    // server-owned starting balance (one-time; no-op if the wallet exists)
+    const { data: startBal } = await sb.rpc("grant_starting_coins", { p_sport: sport });
+    if (typeof startBal === "number") localStorage.setItem(k.coins, String(startBal));
 
     const owned = lsGetOwned(k.owned);
     if (owned.length) {
