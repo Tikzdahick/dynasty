@@ -20,7 +20,8 @@ interface AuthState {
   displayName: string;
   setGuestName: (n: string) => void;
   signInWithPassword: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<string | null>;
+  signInWithMagicLink: (email: string) => Promise<string | null>;
   signInWithGoogle: () => Promise<string | null>;
   signOut: () => Promise<void>;
 }
@@ -61,10 +62,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? error.message : null;
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
     const supabase = getSupabase();
     if (!supabase) return "Auth is not configured. Play as guest instead.";
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // read by the handle_new_user() DB trigger to fill profiles.display_name
+        data: { display_name: displayName?.trim() || email.split("@")[0] },
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+    });
+    return error ? error.message : null;
+  }, []);
+
+  const signInWithMagicLink = useCallback(async (email: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return "Auth is not configured. Play as guest instead.";
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+    });
     return error ? error.message : null;
   }, []);
 
@@ -101,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setGuestName,
         signInWithPassword,
         signUp,
+        signInWithMagicLink,
         signInWithGoogle,
         signOut,
       }}

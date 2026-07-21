@@ -7,26 +7,44 @@ import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { configured, signInWithPassword, signUp, signInWithGoogle, setGuestName } =
+  const { configured, signInWithPassword, signUp, signInWithMagicLink, signInWithGoogle, setGuestName } =
     useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [guest, setGuest] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     const err =
       mode === "signin"
         ? await signInWithPassword(email, password)
-        : await signUp(email, password);
+        : await signUp(email, password, displayName);
     setBusy(false);
     if (err) setError(err);
+    else if (mode === "signup") setNotice("Account created. If email confirmation is on, check your inbox to verify, then sign in.");
     else router.push("/profile");
+  };
+
+  const magicLink = async () => {
+    if (!email.trim()) {
+      setError("Enter your email first, then request a magic link.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const err = await signInWithMagicLink(email);
+    setBusy(false);
+    if (err) setError(err);
+    else setNotice("Magic link sent — check your email and click it to sign in.");
   };
 
   const google = async () => {
@@ -75,6 +93,15 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={submit} className="space-y-3">
+            {mode === "signup" && (
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Display name (shown on the leaderboard)"
+                className="w-full rounded-xl border border-white/10 bg-panel px-4 py-3 text-sm outline-none focus:border-white/30"
+              />
+            )}
             <input
               type="email"
               required
@@ -100,7 +127,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <button onClick={google} className="btn-ghost mt-3 w-full">
+          <button onClick={magicLink} disabled={busy} className="btn-ghost mt-3 w-full">
+            ✉️ Email me a magic link
+          </button>
+          <button onClick={google} className="btn-ghost mt-2 w-full">
             <span className="text-base">G</span> Continue with Google
           </button>
 
@@ -131,6 +161,11 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {notice && (
+        <p className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-2 text-center text-sm text-emerald-300">
+          {notice}
+        </p>
+      )}
       {error && (
         <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-center text-sm text-red-400">
           {error}
