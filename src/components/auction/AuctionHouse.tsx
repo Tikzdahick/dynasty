@@ -267,5 +267,6 @@ function prettyErr(err: string): string {
   if (/insufficient/i.test(err)) return "You don't have enough coins for that.";
   if (/not available|sold/i.test(err)) return "That listing was just taken.";
   if (/own listing/i.test(err)) return "You can't buy your own listing.";
+  if (/rate limited/i.test(err)) return "You're doing that too fast — slow down a moment.";
   return err;
 }

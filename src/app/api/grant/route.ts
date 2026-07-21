@@ -58,6 +58,22 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ error: msg }, { status });
 }
 
+/** Server-side throttle. Returns true if the action is allowed (and records it),
+ *  false if the user is over the limit. Fails open on an RPC error. */
+async function rateOk(
+  svc: ReturnType<typeof serviceClient>,
+  uid: string,
+  action: string,
+  max: number,
+  windowSecs: number
+): Promise<boolean> {
+  const { data, error } = await svc.rpc("rate_limit", {
+    p_user: uid, p_action: action, p_max: max, p_window_secs: windowSecs,
+  });
+  if (error) return true; // don't block legit users on an infra hiccup
+  return data === true;
+}
+
 export async function POST(req: Request) {
   const uid = await userIdFromRequest(req);
   if (!uid) return bad("not signed in", 401);
@@ -78,6 +94,7 @@ export async function POST(req: Request) {
       case "pack": {
         const pack = d.packById(String(body.packId));
         if (!pack) return bad("unknown pack");
+        if (!(await rateOk(svc, uid, "pack", 60, 60))) return bad("rate limited: too many packs, slow down", 429);
         const cardIds = d.open(pack).map((c) => c.id);
         const { data, error } = await svc.rpc("srv_open_pack", {
           p_user: uid, p_sport: sport, p_price: pack.price, p_card_ids: cardIds,
@@ -117,6 +134,7 @@ export async function POST(req: Request) {
         const cardId = String(body.cardId);
         const card = d.cardById(cardId);
         if (!card) return bad("unknown card");
+        if (!(await rateOk(svc, uid, "moment", 30, 60))) return bad("rate limited: too many moments, slow down", 429);
         const price = d.momentPrice(card);
         const { data, error } = await svc.rpc("srv_buy_moment", {
           p_user: uid, p_sport: sport, p_price: price, p_card_id: cardId,

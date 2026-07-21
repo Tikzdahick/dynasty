@@ -17,6 +17,7 @@ function serverErr(msg: string): string {
   if (/already redeemed/i.test(msg)) return "You’ve already redeemed this code.";
   if (/inactive/i.test(msg)) return "This code is no longer active.";
   if (/exhausted/i.test(msg)) return "This code has reached its redemption limit.";
+  if (/rate limited/i.test(msg)) return "Too many attempts — please wait a minute and try again.";
   return msg;
 }
 
@@ -35,14 +36,19 @@ export default function RedeemPage() {
     setResult(null);
 
     if (user) {
-      // logged in -> server-authoritative redeem: DB per-user dedup + credit
+      // logged in -> server-authoritative redeem: DB per-user dedup + throttle.
+      // redeem_code returns { ok, error?, amount? } (it never raises, so throttled
+      // attempts still count).
       const sb = getSupabase();
       const { data, error } = await sb!.rpc("redeem_code", { p_code: raw });
-      if (error) {
-        setResult({ ok: false, message: serverErr(error.message) });
+      const r = (data ?? null) as { ok: boolean; error?: string; amount?: number } | null;
+      if (error || !r) {
+        setResult({ ok: false, message: serverErr(error?.message ?? "Something went wrong.") });
+      } else if (!r.ok) {
+        setResult({ ok: false, message: serverErr(r.error ?? "Couldn’t redeem that code.") });
       } else {
         await Promise.all([resync("nba"), resync("soccer")]);
-        setResult({ ok: true, message: `🎉 ${Number(data).toLocaleString()} coins added to your balance!` });
+        setResult({ ok: true, message: `🎉 ${Number(r.amount).toLocaleString()} coins added to your balance!` });
         setInput("");
       }
       setBusy(false);

@@ -132,6 +132,8 @@ export default function SoccerMyTeamPage() {
         setError(
           res.error === "insufficient balance"
             ? "Not enough Dynasty Coins for that pack."
+            : res.error?.includes("rate limited")
+            ? "You're opening packs too fast — slow down a moment."
             : "Couldn't open that pack — try again."
         );
         return;

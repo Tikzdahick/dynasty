@@ -72,6 +72,8 @@ export default function MomentsPage() {
             ? "Not enough coins for this Moment."
             : res.error === "already owned"
             ? "You already own this card."
+            : res.error?.includes("rate limited")
+            ? "You're doing that too fast — slow down a moment."
             : "Couldn't buy that Moment — try again.",
           2400
         );
